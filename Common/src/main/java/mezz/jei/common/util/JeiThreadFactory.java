@@ -17,12 +17,13 @@ public final class JeiThreadFactory {
 	private static final Logger LOGGER = LogManager.getLogger();
 
 	// Core thread pool for plugin loading - bounded by CPU cores
-	private static final int PLUGIN_LOADER_THREADS = Math.max(2, Runtime.getRuntime().availableProcessors());
+	// Use availableProcessors - 1 to leave room for the server thread in single-player
+	private static final int PLUGIN_LOADER_THREADS = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
 	private static final ExecutorService PLUGIN_LOADER_EXECUTOR = new ThreadPoolExecutor(
-		PLUGIN_LOADER_THREADS / 2,  // Core pool size
-		PLUGIN_LOADER_THREADS,       // Max pool size
-		60L, TimeUnit.SECONDS,       // Keep-alive time
-		new LinkedBlockingQueue<>(100),  // Bounded queue to prevent memory issues
+		Math.max(1, PLUGIN_LOADER_THREADS / 2),  // Core pool size
+		PLUGIN_LOADER_THREADS,                   // Max pool size
+		60L, TimeUnit.SECONDS,                   // Keep-alive time
+		new LinkedBlockingQueue<>(200),          // Larger queue
 		new ThreadFactoryBuilder()
 			.setNameFormat("JEI Plugin Loader-%d")
 			.setDaemon(true)
@@ -44,8 +45,8 @@ public final class JeiThreadFactory {
 
 	// Fork-join pool for parallel stream operations (search, filtering)
 	private static final ForkJoinPool SEARCH_FORK_JOIN_POOL = new ForkJoinPool(
-		Math.max(2, Runtime.getRuntime().availableProcessors()),
-		null,  // Default thread factory
+		Math.max(1, Runtime.getRuntime().availableProcessors() - 1),
+		ForkJoinPool.defaultForkJoinWorkerThreadFactory,
 		(t, e) -> LOGGER.error("Uncaught exception in search thread {}", t.getName(), e),
 		true  // asyncMode
 	);

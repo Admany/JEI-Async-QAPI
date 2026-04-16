@@ -18,11 +18,14 @@ import mezz.jei.library.gui.ingredients.TagContentTooltipComponent;
 import mezz.jei.library.startup.JeiStarter;
 import mezz.jei.library.startup.StartData;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.ScreenEvent;
 
 import java.util.HashSet;
 import java.util.List;
@@ -31,6 +34,7 @@ import java.util.function.Function;
 
 public class JustEnoughItemsClient {
 	private final PermanentEventSubscriptions subscriptions;
+	private final JeiStarter jeiStarter;
 
 	public JustEnoughItemsClient(
 		NetworkHandler networkHandler,
@@ -55,10 +59,25 @@ public class JustEnoughItemsClient {
 			keyMappings
 		);
 
-		JeiStarter jeiStarter = new JeiStarter(startData);
+		this.jeiStarter = new JeiStarter(startData);
 
 		StartEventObserver startEventObserver = new StartEventObserver(jeiStarter::start, jeiStarter::stop);
 		startEventObserver.register(subscriptions);
+
+		subscriptions.register(ScreenEvent.Render.Post.class, event -> {
+			if (jeiStarter.isStarting()) {
+				renderLoadingText(event.getGuiGraphics());
+			}
+		});
+	}
+
+	private void renderLoadingText(GuiGraphics guiGraphics) {
+		Minecraft minecraft = Minecraft.getInstance();
+		var font = minecraft.font;
+		String text = "JEI is loading recipes...";
+		int x = 10;
+		int y = 10;
+		guiGraphics.drawString(font, text, x, y, 0xFFFFFFFF);
 	}
 
 	public void register() {

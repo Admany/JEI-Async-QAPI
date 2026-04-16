@@ -178,7 +178,7 @@ public class ParallelRecipeRegistrar {
 				return;
 			}
 
-			recipeMap.computeIfAbsent(recipeType, k -> new ArrayList<>())
+			recipeMap.computeIfAbsent(recipeType, k -> java.util.Collections.synchronizedList(new ArrayList<>()))
 				.add(new PluginRecipes<>(recipes, pluginUid));
 		}
 

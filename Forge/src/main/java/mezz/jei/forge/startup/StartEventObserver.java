@@ -167,8 +167,9 @@ public class StartEventObserver {
 					// Not ready yet, wait for client tick
 					return;
 				}
+				// Start JEI in background - this is non-blocking now
 				this.startRunnable.run();
-				LOGGER.info("JEI has finished initializing. Mods can now access the JEI runtime via IModPlugin.onRuntimeAvailable().");
+				LOGGER.info("JEI startup initiated in background. The world is running.");
 			}
 		}
 

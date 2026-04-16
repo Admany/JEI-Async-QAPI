@@ -87,8 +87,10 @@ public class RecipeMap {
 	public <T> void addRecipe(RecipeType<T> recipeType, T recipe, IIngredientSupplier ingredientSupplier) {
 		Collection<ITypedIngredient<?>> ingredients = ingredientSupplier.getIngredients(this.role);
 
-		// Use parallel processing for large ingredient lists
-		if (DebugConfig.isParallelSearchEnabled() && ingredients.size() >= PARALLEL_THRESHOLD) {
+		// Use parallel processing for large ingredient lists, but avoid nested parallelism
+		if (DebugConfig.isParallelSearchEnabled() &&
+			ingredients.size() >= PARALLEL_THRESHOLD &&
+			java.util.concurrent.ForkJoinTask.getPool() == null) {
 			addRecipeParallel(recipeType, recipe, ingredients);
 		} else {
 			addRecipeSequential(recipeType, recipe, ingredients);
@@ -119,20 +121,34 @@ public class RecipeMap {
 	private <T> void addRecipeParallel(RecipeType<T> recipeType, T recipe, Collection<ITypedIngredient<?>> ingredients) {
 		LOGGER.debug("Adding recipe with {} ingredients using parallel processing", ingredients.size());
 
-		// Extract ingredient UIDs in parallel
-		Set<Object> ingredientUids = ingredients.parallelStream()
-			.map(this::getIngredientUid)
-			.collect(Collectors.toCollection(ConcurrentHashMap::newKeySet));
+		try {
+			// Extract ingredient UIDs in parallel
+			Set<Object> ingredientUids = ingredients.parallelStream()
+				.map(this::getIngredientUidSafe)
+				.filter(java.util.Objects::nonNull)
+				.collect(Collectors.toCollection(ConcurrentHashMap::newKeySet));
 
-		if (!ingredientUids.isEmpty()) {
-			// Update category map sequentially (not thread-safe for parallel modification)
-			// The parallel stream here was causing contention/deadlock on the underlying map
-			for (Object uid : ingredientUids) {
-				ingredientUidToCategoryMap.put(uid, recipeType);
+			if (!ingredientUids.isEmpty()) {
+				// Update category map sequentially
+				for (Object uid : ingredientUids) {
+					ingredientUidToCategoryMap.put(uid, recipeType);
+				}
+
+				// Add to recipe table
+				recipeTable.add(recipe, recipeType, ingredientUids);
 			}
+		} catch (Exception e) {
+			LOGGER.warn("Parallel recipe addition failed, falling back to sequential for recipe type {}", recipeType, e);
+			addRecipeSequential(recipeType, recipe, ingredients);
+		}
+	}
 
-			// Add to recipe table
-			recipeTable.add(recipe, recipeType, ingredientUids);
+	private <T> Object getIngredientUidSafe(ITypedIngredient<T> typedIngredient) {
+		try {
+			return getIngredientUid(typedIngredient);
+		} catch (Exception e) {
+			LOGGER.error("Failed to get ingredient UID for {}", typedIngredient.getIngredient(), e);
+			return null;
 		}
 	}
 

@@ -46,13 +46,13 @@ public class RecipeManagerInternal {
 	private final Comparator<IRecipeCategory<?>> recipeCategoryComparator;
 	private final EnumMap<RecipeIngredientRole, RecipeMap> recipeMaps;
 	private final PluginManager pluginManager;
-	private final Set<RecipeType<?>> hiddenRecipeTypes = new HashSet<>();
+	private final Set<RecipeType<?>> hiddenRecipeTypes = java.util.Collections.synchronizedSet(new HashSet<>());
 	private final IIngredientVisibility ingredientVisibility;
 	private ImmutableListMultimap<RecipeType<?>, IRecipeCategoryDecorator<?>> recipeCategoryDecorators;
 
 	@Nullable
 	@Unmodifiable
-	private List<IRecipeCategory<?>> recipeCategoriesVisibleCache = null;
+	private volatile List<IRecipeCategory<?>> recipeCategoriesVisibleCache = null;
 
 	public RecipeManagerInternal(
 		List<IRecipeCategory<?>> recipeCategories,

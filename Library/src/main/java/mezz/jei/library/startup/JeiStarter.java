@@ -52,6 +52,7 @@ public final class JeiStarter {
 	private final FileWatcher fileWatcher = new FileWatcher("JEI Config File Watcher");
 	private final ConfigManager configManager;
 	private final JeiClientConfigs jeiClientConfigs;
+	private volatile boolean isStarting = false;
 
 	public JeiStarter(StartData data) {
 		ErrorUtil.checkNotEmpty(data.plugins(), "plugins");
@@ -90,75 +91,91 @@ public final class JeiStarter {
 		PluginCaller.callOnPlugins("Sending ConfigManager", plugins, p -> p.onConfigManagerAvailable(configManager));
 	}
 
-	public void start() {
+	public java.util.concurrent.CompletableFuture<Void> start() {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.level == null) {
 			LOGGER.error("Failed to start JEI, there is no Minecraft client level.");
-			return;
+			return java.util.concurrent.CompletableFuture.completedFuture(null);
 		}
 
-		LoggedTimer totalTime = new LoggedTimer();
-		totalTime.start("Starting JEI");
+		isStarting = true;
+		return java.util.concurrent.CompletableFuture.runAsync(() -> {
+			try {
+				LoggedTimer totalTime = new LoggedTimer();
+				totalTime.start("Starting JEI (Background)");
 
-		IColorHelper colorHelper = new ColorHelper(colorNameConfig);
-		IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
-		SubtypeManager subtypeManager = PluginLoader.registerSubtypes(data);
-		IIngredientManager ingredientManager = PluginLoader.registerIngredients(data, subtypeManager, colorHelper, ingredientFilterConfig);
+				IColorHelper colorHelper = new ColorHelper(colorNameConfig);
+				IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
+				SubtypeManager subtypeManager = PluginLoader.registerSubtypes(data);
+				IIngredientManager ingredientManager = PluginLoader.registerIngredients(data, subtypeManager, colorHelper, ingredientFilterConfig);
 
-		FocusFactory focusFactory = new FocusFactory(ingredientManager);
+				FocusFactory focusFactory = new FocusFactory(ingredientManager);
 
-		Path configDir = Services.PLATFORM.getConfigHelper().createJeiConfigDir();
-		EditModeConfig editModeConfig = new EditModeConfig(new EditModeConfig.FileSerializer(configDir.resolve("blacklist.cfg")), ingredientManager);
+				Path configDir = Services.PLATFORM.getConfigHelper().createJeiConfigDir();
+				EditModeConfig editModeConfig = new EditModeConfig(new EditModeConfig.FileSerializer(configDir.resolve("blacklist.cfg")), ingredientManager);
 
-		JeiHelpers jeiHelpers = PluginLoader.createJeiHelpers(modIdFormatConfig, colorHelper, editModeConfig, focusFactory, ingredientManager, subtypeManager);
+				JeiHelpers jeiHelpers = PluginLoader.createJeiHelpers(modIdFormatConfig, colorHelper, editModeConfig, focusFactory, ingredientManager, subtypeManager);
 
-		RecipeManager recipeManager = PluginLoader.createRecipeManager(
-			plugins,
-			vanillaPlugin,
-			recipeCategorySortingConfig,
-			jeiHelpers,
-			ingredientManager
-		);
-		IRecipeTransferManager recipeTransferManager = PluginLoader.createRecipeTransferManager(
-			plugins,
-			jeiHelpers,
-			data.serverConnection()
-		);
+				RecipeManager recipeManager = PluginLoader.createRecipeManager(
+					plugins,
+					vanillaPlugin,
+					recipeCategorySortingConfig,
+					jeiHelpers,
+					ingredientManager
+				);
+				IRecipeTransferManager recipeTransferManager = PluginLoader.createRecipeTransferManager(
+					plugins,
+					jeiHelpers,
+					data.serverConnection()
+				);
 
-		LoggedTimer timer = new LoggedTimer();
-		timer.start("Building runtime");
-		IScreenHelper screenHelper = PluginLoader.createGuiScreenHelper(plugins, jeiHelpers, ingredientManager);
+				IScreenHelper screenHelper = PluginLoader.createGuiScreenHelper(plugins, jeiHelpers, ingredientManager);
 
-		RuntimeRegistration runtimeRegistration = new RuntimeRegistration(
-			recipeManager,
-			jeiHelpers,
-			editModeConfig,
-			ingredientManager,
-			recipeTransferManager,
-			screenHelper
-		);
-		PluginCaller.callOnPlugins("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration));
+				// These parts need to happen on the main thread as they might trigger mod logic or GUI updates
+				minecraft.execute(() -> {
+					LoggedTimer timer = new LoggedTimer();
+					timer.start("Building runtime (Main Thread)");
 
-		JeiRuntime jeiRuntime = new JeiRuntime(
-			recipeManager,
-			ingredientManager,
-			data.keyBindings(),
-			jeiHelpers,
-			screenHelper,
-			recipeTransferManager,
-			editModeConfig,
-			runtimeRegistration.getIngredientListOverlay(),
-			runtimeRegistration.getBookmarkOverlay(),
-			runtimeRegistration.getRecipesGui(),
-			runtimeRegistration.getIngredientFilter(),
-			configManager
-		);
-		timer.stop();
+					RuntimeRegistration runtimeRegistration = new RuntimeRegistration(
+						recipeManager,
+						jeiHelpers,
+						editModeConfig,
+						ingredientManager,
+						recipeTransferManager,
+						screenHelper
+					);
+					PluginCaller.callOnPlugins("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration));
 
-		PluginCaller.callOnPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime));
-		Internal.setRuntime(jeiRuntime);
+					JeiRuntime jeiRuntime = new JeiRuntime(
+						recipeManager,
+						ingredientManager,
+						data.keyBindings(),
+						jeiHelpers,
+						screenHelper,
+						recipeTransferManager,
+						editModeConfig,
+						runtimeRegistration.getIngredientListOverlay(),
+						runtimeRegistration.getBookmarkOverlay(),
+						runtimeRegistration.getRecipesGui(),
+						runtimeRegistration.getIngredientFilter(),
+						configManager
+					);
+					timer.stop();
 
-		totalTime.stop();
+					PluginCaller.callOnPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime));
+					Internal.setRuntime(jeiRuntime);
+					totalTime.stop();
+				});
+			} catch (Exception e) {
+				LOGGER.error("Failed to start JEI in background", e);
+			} finally {
+				isStarting = false;
+			}
+		}, mezz.jei.common.util.JeiThreadFactory.getPluginLoaderExecutor());
+	}
+
+	public boolean isStarting() {
+		return isStarting;
 	}
 
 	public void stop() {
