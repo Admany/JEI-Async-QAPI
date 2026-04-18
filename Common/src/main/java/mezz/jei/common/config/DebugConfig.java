@@ -23,6 +23,7 @@ public final class DebugConfig {
 	private final Supplier<Boolean> enableAsyncLoading;
 	private final Supplier<Boolean> enableTooltipCache;
 	private final Supplier<Boolean> enableParallelSearch;
+	private final Supplier<Integer> searchThreadCount;
 
 	private DebugConfig(IConfigSchemaBuilder schema) {
 		IConfigCategoryBuilder advanced = schema.addCategory("debug");
@@ -70,6 +71,13 @@ public final class DebugConfig {
 			"enableParallelSearch",
 			true,
 			"Enable parallel search processing for improved performance. Set to false ONLY if you experience search-related crashes or issues."
+		);
+		searchThreadCount = advanced.addInteger(
+			"searchThreadCount",
+			4,
+			1,
+			64,
+			"Number of threads to use for search and filtering operations. Increasing this can speed up search on multi-core CPUs, but may increase memory usage."
 		);
 	}
 
@@ -134,5 +142,12 @@ public final class DebugConfig {
 			return true; // Default to enabled
 		}
 		return instance.enableParallelSearch.get();
+	}
+
+	public static int getSearchThreadCount() {
+		if (instance == null) {
+			return 4;
+		}
+		return instance.searchThreadCount.get();
 	}
 }

@@ -94,9 +94,15 @@ public class JeiGuiStarter {
 
 		RegistryAccess registryAccess = level.registryAccess();
 
-		timer.start("Building ingredient list");
-		List<IListElementInfo<?>> ingredientList = IngredientListElementFactory.createBaseList(ingredientManager, modIdHelper);
-		timer.stop();
+		@SuppressWarnings("unchecked")
+		List<IListElementInfo<?>> ingredientList = (List<IListElementInfo<?>>) registration.getInternalIngredientList()
+			.orElseGet(() -> {
+				LOGGER.info("Building ingredient list (Sync fallback)...");
+				timer.start("Building ingredient list");
+				List<IListElementInfo<?>> list = IngredientListElementFactory.createBaseList(ingredientManager, modIdHelper);
+				timer.stop();
+				return list;
+			});
 
 		timer.start("Building ingredient filter");
 		GuiConfigData configData = GuiConfigData.create();

@@ -1,6 +1,7 @@
 package mezz.jei.common.util;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import mezz.jei.common.config.DebugConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,12 +45,7 @@ public final class JeiThreadFactory {
 	);
 
 	// Fork-join pool for parallel stream operations (search, filtering)
-	private static final ForkJoinPool SEARCH_FORK_JOIN_POOL = new ForkJoinPool(
-		Math.max(1, Runtime.getRuntime().availableProcessors() - 1),
-		ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-		(t, e) -> LOGGER.error("Uncaught exception in search thread {}", t.getName(), e),
-		true  // asyncMode
-	);
+	private static ForkJoinPool searchForkJoinPool;
 
 	// Scheduled executor for delayed/background tasks
 	private static final ScheduledExecutorService SCHEDULED_EXECUTOR = new ScheduledThreadPoolExecutor(
@@ -84,8 +80,18 @@ public final class JeiThreadFactory {
 	 * Get the search fork-join pool.
 	 * Optimized for parallel stream operations.
 	 */
-	public static ForkJoinPool getSearchForkJoinPool() {
-		return SEARCH_FORK_JOIN_POOL;
+	public static synchronized ForkJoinPool getSearchForkJoinPool() {
+		if (searchForkJoinPool == null) {
+			int threadCount = DebugConfig.getSearchThreadCount();
+			LOGGER.info("Initializing JEI Search ForkJoinPool with {} threads", threadCount);
+			searchForkJoinPool = new ForkJoinPool(
+				threadCount,
+				ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+				(t, e) -> LOGGER.error("Uncaught exception in search thread {}", t.getName(), e),
+				true  // asyncMode
+			);
+		}
+		return searchForkJoinPool;
 	}
 
 	/**
@@ -134,7 +140,7 @@ public final class JeiThreadFactory {
 	 */
 	public static <T> T executeInForkJoinPool(Callable<T> task) {
 		try {
-			return SEARCH_FORK_JOIN_POOL.submit(task).get();
+			return getSearchForkJoinPool().submit(task).get();
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new RuntimeException("Task interrupted", e);
@@ -151,7 +157,11 @@ public final class JeiThreadFactory {
 
 		PLUGIN_LOADER_EXECUTOR.shutdown();
 		TOOLTIP_PREP_EXECUTOR.shutdown();
-		SEARCH_FORK_JOIN_POOL.shutdown();
+		synchronized (JeiThreadFactory.class) {
+			if (searchForkJoinPool != null) {
+				searchForkJoinPool.shutdown();
+			}
+		}
 		SCHEDULED_EXECUTOR.shutdown();
 
 		try {
@@ -161,8 +171,10 @@ public final class JeiThreadFactory {
 			if (!TOOLTIP_PREP_EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
 				TOOLTIP_PREP_EXECUTOR.shutdownNow();
 			}
-			if (!SEARCH_FORK_JOIN_POOL.awaitTermination(5, TimeUnit.SECONDS)) {
-				SEARCH_FORK_JOIN_POOL.shutdownNow();
+			synchronized (JeiThreadFactory.class) {
+				if (searchForkJoinPool != null && !searchForkJoinPool.awaitTermination(5, TimeUnit.SECONDS)) {
+					searchForkJoinPool.shutdownNow();
+				}
 			}
 			if (!SCHEDULED_EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
 				SCHEDULED_EXECUTOR.shutdownNow();
@@ -171,7 +183,11 @@ public final class JeiThreadFactory {
 			Thread.currentThread().interrupt();
 			PLUGIN_LOADER_EXECUTOR.shutdownNow();
 			TOOLTIP_PREP_EXECUTOR.shutdownNow();
-			SEARCH_FORK_JOIN_POOL.shutdownNow();
+			synchronized (JeiThreadFactory.class) {
+				if (searchForkJoinPool != null) {
+					searchForkJoinPool.shutdownNow();
+				}
+			}
 			SCHEDULED_EXECUTOR.shutdownNow();
 		}
 

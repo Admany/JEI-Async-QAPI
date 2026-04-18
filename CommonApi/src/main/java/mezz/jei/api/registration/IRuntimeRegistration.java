@@ -11,6 +11,10 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IIngredientVisibility;
 import mezz.jei.api.runtime.IRecipesGui;
 import mezz.jei.api.runtime.IScreenHelper;
+import org.jetbrains.annotations.ApiStatus;
+
+import java.util.List;
+import java.util.Optional;
 
 /**
  * Allows mods to override the runtime classes for JEI with their own implementation.
@@ -92,4 +96,14 @@ public interface IRuntimeRegistration {
 	 * This is used by JEI's GUI and can be used by other mods that want to use the same information from JEI.
 	 */
 	IEditModeConfig getEditModeConfig();
+
+	/**
+	 * Get the pre-calculated ingredient list if it was built in the background.
+	 * This is an internal method used to optimize startup.
+	 * @since 1.20.1-async
+	 */
+	@ApiStatus.Internal
+	default Optional<List<?>> getInternalIngredientList() {
+		return Optional.empty();
+	}
 }

@@ -1,6 +1,7 @@
 package mezz.jei.gui.ingredients;
 
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IngredientSortStage;
 import mezz.jei.gui.config.IngredientTypeSortingConfig;
@@ -12,7 +13,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public final class IngredientSorter {
-	private static final Comparator<IListElement<?>> COMPARE_SORT_INDEX =
+	public static final Comparator<IListElement<?>> COMPARE_SORT_INDEX =
 		Comparator.comparing(IListElement::getSortedIndex);
 
 	public static Comparator<IListElement<?>> sortIngredients(
@@ -22,9 +23,16 @@ public final class IngredientSorter {
 		IIngredientManager ingredientManager,
 		List<IListElementInfo<?>> ingredients
 	) {
-		Set<String> modNames = ingredients.stream()
-			.map(IListElementInfo::getModNameForSorting)
-			.collect(Collectors.toSet());
+		Set<String> modNames;
+		if (DebugConfig.isAsyncLoadingEnabled()) {
+			modNames = ingredients.parallelStream()
+				.map(IListElementInfo::getModNameForSorting)
+				.collect(Collectors.toSet());
+		} else {
+			modNames = ingredients.stream()
+				.map(IListElementInfo::getModNameForSorting)
+				.collect(Collectors.toSet());
+		}
 
 		IngredientSorterComparators comparators = new IngredientSorterComparators(ingredientManager, modNameSortingConfig, ingredientTypeSortingConfig, modNames);
 
@@ -37,10 +45,18 @@ public final class IngredientSorter {
 
 		// Go through all of the items and set their sorted index.
 		final int size = ingredients.size();
-		for (int i = 0; i < size; i++) {
-			IListElementInfo<?> elementInfo = ingredients.get(i);
-			IListElement<?> element = elementInfo.getElement();
-			element.setSortedIndex(i);
+		if (DebugConfig.isAsyncLoadingEnabled() && size > 1000) {
+			java.util.stream.IntStream.range(0, size).parallel().forEach(i -> {
+				IListElementInfo<?> elementInfo = ingredients.get(i);
+				IListElement<?> element = elementInfo.getElement();
+				element.setSortedIndex(i);
+			});
+		} else {
+			for (int i = 0; i < size; i++) {
+				IListElementInfo<?> elementInfo = ingredients.get(i);
+				IListElement<?> element = elementInfo.getElement();
+				element.setSortedIndex(i);
+			}
 		}
 
 		//Now the comparator just uses that index value to order everything.

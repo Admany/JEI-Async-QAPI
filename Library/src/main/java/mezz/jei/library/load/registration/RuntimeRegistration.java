@@ -16,6 +16,9 @@ import mezz.jei.library.gui.IngredientListOverlayDummy;
 import mezz.jei.library.gui.recipes.RecipesGuiDummy;
 import mezz.jei.library.ingredients.IngredientFilterApiDummy;
 
+import java.util.List;
+import java.util.Optional;
+
 public class RuntimeRegistration implements IRuntimeRegistration {
 	private final IRecipeManager recipeManager;
 	private final IJeiHelpers jeiHelpers;
@@ -23,6 +26,7 @@ public class RuntimeRegistration implements IRuntimeRegistration {
 	private final IIngredientManager ingredientManager;
 	private final IRecipeTransferManager recipeTransferManager;
 	private final IScreenHelper screenHelper;
+	private final List<?> ingredientList;
 
 	private IIngredientListOverlay ingredientListOverlay = IngredientListOverlayDummy.INSTANCE;
 	private IBookmarkOverlay bookmarkOverlay = BookmarkOverlayDummy.INSTANCE;
@@ -37,12 +41,25 @@ public class RuntimeRegistration implements IRuntimeRegistration {
 		IRecipeTransferManager recipeTransferManager,
 		IScreenHelper screenHelper
 	) {
+		this(recipeManager, jeiHelpers, editModeConfig, ingredientManager, recipeTransferManager, screenHelper, null);
+	}
+
+	public RuntimeRegistration(
+		IRecipeManager recipeManager,
+		IJeiHelpers jeiHelpers,
+		IEditModeConfig editModeConfig,
+		IIngredientManager ingredientManager,
+		IRecipeTransferManager recipeTransferManager,
+		IScreenHelper screenHelper,
+		List<?> ingredientList
+	) {
 		this.recipeManager = recipeManager;
 		this.jeiHelpers = jeiHelpers;
 		this.editModeConfig = editModeConfig;
 		this.ingredientManager = ingredientManager;
 		this.recipeTransferManager = recipeTransferManager;
 		this.screenHelper = screenHelper;
+		this.ingredientList = ingredientList;
 	}
 
 	@Override
@@ -109,5 +126,10 @@ public class RuntimeRegistration implements IRuntimeRegistration {
 
 	public IIngredientFilter getIngredientFilter() {
 		return this.ingredientFilter;
+	}
+
+	@Override
+	public Optional<List<?>> getInternalIngredientList() {
+		return Optional.ofNullable(ingredientList);
 	}
 }

@@ -3,7 +3,9 @@ package mezz.jei.library.startup;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
+import mezz.jei.api.runtime.IIngredientFilter;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.ConfigManager;
@@ -32,6 +34,7 @@ import mezz.jei.library.plugins.vanilla.VanillaPlugin;
 import mezz.jei.library.recipes.RecipeManager;
 import mezz.jei.library.runtime.JeiHelpers;
 import mezz.jei.library.runtime.JeiRuntime;
+import mezz.jei.library.load.registration.RuntimeRegistrationBuilder;
 import net.minecraft.client.Minecraft;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -98,6 +101,11 @@ public final class JeiStarter {
 			return java.util.concurrent.CompletableFuture.completedFuture(null);
 		}
 
+		if (isStarting) {
+			LOGGER.warn("JEI is already starting.");
+			return java.util.concurrent.CompletableFuture.completedFuture(null);
+		}
+
 		isStarting = true;
 		return java.util.concurrent.CompletableFuture.runAsync(() -> {
 			try {
@@ -131,6 +139,10 @@ public final class JeiStarter {
 
 				IScreenHelper screenHelper = PluginLoader.createGuiScreenHelper(plugins, jeiHelpers, ingredientManager);
 
+				// Pre-build ingredient list in background to avoid main thread hang
+				LOGGER.info("Pre-building ingredient list in background...");
+				List<?> ingredientList = RuntimeRegistrationBuilder.buildIngredientList(ingredientManager, jeiHelpers.getModIdHelper());
+
 				// These parts need to happen on the main thread as they might trigger mod logic or GUI updates
 				minecraft.execute(() -> {
 					LoggedTimer timer = new LoggedTimer();
@@ -142,7 +154,8 @@ public final class JeiStarter {
 						editModeConfig,
 						ingredientManager,
 						recipeTransferManager,
-						screenHelper
+						screenHelper,
+						ingredientList
 					);
 					PluginCaller.callOnPlugins("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration));
 
@@ -165,10 +178,10 @@ public final class JeiStarter {
 					PluginCaller.callOnPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime));
 					Internal.setRuntime(jeiRuntime);
 					totalTime.stop();
+					isStarting = false;
 				});
 			} catch (Exception e) {
 				LOGGER.error("Failed to start JEI in background", e);
-			} finally {
 				isStarting = false;
 			}
 		}, mezz.jei.common.util.JeiThreadFactory.getPluginLoaderExecutor());
@@ -182,6 +195,17 @@ public final class JeiStarter {
 		LOGGER.info("Stopping JEI");
 		List<IModPlugin> plugins = data.plugins();
 		PluginCaller.callOnPlugins("Sending Runtime Unavailable", plugins, IModPlugin::onRuntimeUnavailable);
+
+		try {
+			IJeiRuntime jeiRuntime = Internal.getJeiRuntime();
+			IIngredientFilter ingredientFilter = jeiRuntime.getIngredientFilter();
+			if (ingredientFilter instanceof AutoCloseable closeable) {
+				closeable.close();
+			}
+		} catch (Exception e) {
+			LOGGER.error("Error while stopping ingredient filter", e);
+		}
+
 		Internal.setRuntime(null);
 	}
 }
