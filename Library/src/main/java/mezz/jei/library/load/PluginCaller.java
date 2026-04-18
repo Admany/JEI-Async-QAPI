@@ -14,8 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 public class PluginCaller {
@@ -61,38 +59,25 @@ public class PluginCaller {
 
 		// Execute async-safe plugins on background thread pool with optimized parallelism
 		if (!asyncPlugins.isEmpty()) {
-			CompletableFuture<Void> asyncTask = CompletableFuture.runAsync(() -> {
-				// Use parallel execution for large plugin counts
-				if (asyncPlugins.size() >= 4) {
-					// Execute plugins in parallel using parallel streams
-					asyncPlugins.parallelStream()
-						.forEach(plugin -> {
-							try {
-								func.accept(plugin);
-							} catch (RuntimeException | LinkageError e) {
-								LOGGER.error("Caught an error from async mod plugin: {} {}",
-									plugin.getClass(), plugin.getPluginUid(), e);
-							}
-						});
-				} else {
-					// Sequential execution for small plugin counts (less overhead)
-					for (IModPlugin plugin : asyncPlugins) {
-						try {
-							func.accept(plugin);
-						} catch (RuntimeException | LinkageError e) {
-							LOGGER.error("Caught an error from async mod plugin: {} {}",
+			List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+			for (IModPlugin plugin : asyncPlugins) {
+				CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+					try {
+						func.accept(plugin);
+					} catch (RuntimeException | LinkageError e) {
+						LOGGER.error("Caught an error from async mod plugin: {} {}",
 								plugin.getClass(), plugin.getPluginUid(), e);
-						}
 					}
-				}
-			}, JeiThreadFactory.getPluginLoaderExecutor());
+				}, JeiThreadFactory.getPluginLoaderExecutor());
+				futures.add(future);
+			}
+
+			CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
 
 			// Wait for async plugins to complete (with timeout to prevent hangs)
 			try {
-				asyncTask.get(30, TimeUnit.SECONDS);
-			} catch (TimeoutException e) {
-				LOGGER.error("Async plugin execution timed out after 30 seconds. Some plugins may not have completed registration.");
-				asyncTask.cancel(true);
+				allOf.get();
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 				LOGGER.error("Async plugin execution was interrupted", e);

@@ -1,5 +1,6 @@
 package mezz.jei.library.plugins.vanilla;
 
+import mezz.jei.api.IAsyncCompatiblePlugin;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.ModIds;
@@ -123,7 +124,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 @JeiPlugin
-public class VanillaPlugin implements IModPlugin {
+public class VanillaPlugin implements IModPlugin, IAsyncCompatiblePlugin {
 	private static final Logger LOGGER = LogManager.getLogger();
 
 	@Nullable
