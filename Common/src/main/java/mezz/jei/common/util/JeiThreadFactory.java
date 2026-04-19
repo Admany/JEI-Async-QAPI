@@ -6,6 +6,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Optimized thread pool factory for JEI operations.
@@ -20,43 +21,11 @@ public final class JeiThreadFactory {
 	// Core thread pool for plugin loading - bounded by CPU cores
 	// Use availableProcessors - 1 to leave room for the server thread in single-player
 	private static final int PLUGIN_LOADER_THREADS = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
-	private static final ExecutorService PLUGIN_LOADER_EXECUTOR = new ThreadPoolExecutor(
-		Math.max(1, PLUGIN_LOADER_THREADS / 2),  // Core pool size
-		PLUGIN_LOADER_THREADS,                   // Max pool size
-		60L, TimeUnit.SECONDS,                   // Keep-alive time
-		new LinkedBlockingQueue<>(200),          // Larger queue
-		new ThreadFactoryBuilder()
-			.setNameFormat("JEI Plugin Loader-%d")
-			.setDaemon(true)
-			.setUncaughtExceptionHandler((t, e) ->
-				LOGGER.error("Uncaught exception in plugin loader thread {}", t.getName(), e))
-			.build(),
-		new ThreadPoolExecutor.CallerRunsPolicy()  // Backpressure when overloaded
-	);
 
-	// Cached thread pool for tooltip and rendering prep work
-	private static final ExecutorService TOOLTIP_PREP_EXECUTOR = Executors.newCachedThreadPool(
-		new ThreadFactoryBuilder()
-			.setNameFormat("JEI Tooltip Prep-%d")
-			.setDaemon(true)
-			.setUncaughtExceptionHandler((t, e) ->
-				LOGGER.error("Uncaught exception in tooltip prep thread {}", t.getName(), e))
-			.build()
-	);
-
-	// Fork-join pool for parallel stream operations (search, filtering)
+	private static ExecutorService pluginLoaderExecutor;
+	private static ExecutorService tooltipPrepExecutor;
 	private static ForkJoinPool searchForkJoinPool;
-
-	// Scheduled executor for delayed/background tasks
-	private static final ScheduledExecutorService SCHEDULED_EXECUTOR = new ScheduledThreadPoolExecutor(
-		2,
-		new ThreadFactoryBuilder()
-			.setNameFormat("JEI Scheduler-%d")
-			.setDaemon(true)
-			.setUncaughtExceptionHandler((t, e) ->
-				LOGGER.error("Uncaught exception in scheduler thread {}", t.getName(), e))
-			.build()
-	);
+	private static ScheduledExecutorService scheduledExecutor;
 
 	private JeiThreadFactory() {}
 
@@ -64,16 +33,43 @@ public final class JeiThreadFactory {
 	 * Get the plugin loader executor.
 	 * Optimized for CPU-bound plugin registration work.
 	 */
-	public static ExecutorService getPluginLoaderExecutor() {
-		return PLUGIN_LOADER_EXECUTOR;
+	public static synchronized ExecutorService getPluginLoaderExecutor() {
+		if (pluginLoaderExecutor == null || pluginLoaderExecutor.isShutdown()) {
+			ThreadPoolExecutor executor = new ThreadPoolExecutor(
+				Math.max(1, PLUGIN_LOADER_THREADS / 2),  // Core pool size
+				PLUGIN_LOADER_THREADS,                   // Max pool size
+				10L, TimeUnit.MILLISECONDS,                   // Keep-alive time
+				new LinkedBlockingQueue<>(200),          // Larger queue
+				new ThreadFactoryBuilder()
+					.setNameFormat("JEI Plugin Loader-%d")
+					.setDaemon(true)
+					.setUncaughtExceptionHandler((t, e) ->
+						LOGGER.error("Uncaught exception in plugin loader thread {}", t.getName(), e))
+					.build(),
+				new ThreadPoolExecutor.CallerRunsPolicy()  // Backpressure when overloaded
+			);
+			executor.allowCoreThreadTimeOut(true);
+			pluginLoaderExecutor = executor;
+		}
+		return pluginLoaderExecutor;
 	}
 
 	/**
 	 * Get the tooltip preparation executor.
 	 * Optimized for mixed I/O and computation work.
 	 */
-	public static ExecutorService getTooltipPrepExecutor() {
-		return TOOLTIP_PREP_EXECUTOR;
+	public static synchronized ExecutorService getTooltipPrepExecutor() {
+		if (tooltipPrepExecutor == null || tooltipPrepExecutor.isShutdown()) {
+			tooltipPrepExecutor = Executors.newCachedThreadPool(
+				new ThreadFactoryBuilder()
+					.setNameFormat("JEI Tooltip Prep-%d")
+					.setDaemon(true)
+					.setUncaughtExceptionHandler((t, e) ->
+						LOGGER.error("Uncaught exception in tooltip prep thread {}", t.getName(), e))
+					.build()
+			);
+		}
+		return tooltipPrepExecutor;
 	}
 
 	/**
@@ -81,25 +77,66 @@ public final class JeiThreadFactory {
 	 * Optimized for parallel stream operations.
 	 */
 	public static synchronized ForkJoinPool getSearchForkJoinPool() {
-		if (searchForkJoinPool == null) {
+		if (searchForkJoinPool == null || searchForkJoinPool.isShutdown()) {
 			int threadCount = DebugConfig.getSearchThreadCount();
 			LOGGER.info("Initializing JEI Search ForkJoinPool with {} threads", threadCount);
 			searchForkJoinPool = new ForkJoinPool(
-				threadCount,
-				ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-				(t, e) -> LOGGER.error("Uncaught exception in search thread {}", t.getName(), e),
-				true  // asyncMode
+				threadCount, // parallelism
+				createSearchForkJoinWorkerThreadFactory(), // custom factory for naming
+				(t, e) -> LOGGER.error("Uncaught exception in search thread {}", t.getName(), e), // exception handler
+				true,  // asyncMode
+				0, // corePoolSize: allow all threads to time out
+				threadCount, // maximumPoolSize
+				0, // minRunnable
+				null, // keepAliveAction
+				10L, TimeUnit.MILLISECONDS // keepAliveTime
 			);
 		}
 		return searchForkJoinPool;
 	}
 
 	/**
+	 * Creates a custom ForkJoinWorkerThreadFactory to name threads and ensure they are daemon.
+	 */
+	private static ForkJoinPool.ForkJoinWorkerThreadFactory createSearchForkJoinWorkerThreadFactory() {
+		return new ForkJoinPool.ForkJoinWorkerThreadFactory() {
+			private final AtomicInteger threadNumber = new AtomicInteger(1);
+
+			@Override
+			public ForkJoinWorkerThread newThread(ForkJoinPool pool) {
+				ForkJoinWorkerThread worker = new ForkJoinWorkerThread(pool) {
+					@Override
+					protected void onTermination(Throwable exception) {
+						super.onTermination(exception);
+					}
+				};
+				worker.setName("JEI Search-" + threadNumber.getAndIncrement());
+				worker.setDaemon(true); // Ensure it's a daemon thread
+				return worker;
+			}
+		};
+	}
+
+	/**
 	 * Get the scheduled executor.
 	 * For delayed and periodic tasks.
 	 */
-	public static ScheduledExecutorService getScheduledExecutor() {
-		return SCHEDULED_EXECUTOR;
+	public static synchronized ScheduledExecutorService getScheduledExecutor() {
+		if (scheduledExecutor == null || scheduledExecutor.isShutdown()) {
+			ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(
+				2,
+				new ThreadFactoryBuilder()
+					.setNameFormat("JEI Scheduler-%d")
+					.setDaemon(true)
+					.setUncaughtExceptionHandler((t, e) ->
+						LOGGER.error("Uncaught exception in scheduler thread {}", t.getName(), e))
+					.build()
+			);
+			executor.setKeepAliveTime(60L, TimeUnit.SECONDS);
+			executor.allowCoreThreadTimeOut(true);
+			scheduledExecutor = executor;
+		}
+		return scheduledExecutor;
 	}
 
 	/**
@@ -112,14 +149,14 @@ public final class JeiThreadFactory {
 			} catch (Exception e) {
 				throw new CompletionException(e);
 			}
-		}, PLUGIN_LOADER_EXECUTOR);
+		}, getPluginLoaderExecutor());
 	}
 
 	/**
 	 * Submit a runnable task to the plugin loader executor.
 	 */
 	public static CompletableFuture<Void> submitPluginTask(Runnable task) {
-		return CompletableFuture.runAsync(task, PLUGIN_LOADER_EXECUTOR);
+		return CompletableFuture.runAsync(task, getPluginLoaderExecutor());
 	}
 
 	/**
@@ -132,7 +169,7 @@ public final class JeiThreadFactory {
 			} catch (Exception e) {
 				throw new CompletionException(e);
 			}
-		}, TOOLTIP_PREP_EXECUTOR);
+		}, getTooltipPrepExecutor());
 	}
 
 	/**
@@ -152,44 +189,47 @@ public final class JeiThreadFactory {
 	/**
 	 * Shutdown all executors gracefully.
 	 */
-	public static void shutdown() {
+	public static synchronized void shutdown() {
 		LOGGER.info("Shutting down JEI thread pools...");
 
-		PLUGIN_LOADER_EXECUTOR.shutdown();
-		TOOLTIP_PREP_EXECUTOR.shutdown();
-		synchronized (JeiThreadFactory.class) {
-			if (searchForkJoinPool != null) {
-				searchForkJoinPool.shutdown();
-			}
+		if (pluginLoaderExecutor != null) {
+			pluginLoaderExecutor.shutdown();
 		}
-		SCHEDULED_EXECUTOR.shutdown();
+		if (tooltipPrepExecutor != null) {
+			tooltipPrepExecutor.shutdown();
+		}
+		if (searchForkJoinPool != null) {
+			searchForkJoinPool.shutdown();
+		}
+		if (scheduledExecutor != null) {
+			scheduledExecutor.shutdown();
+		}
 
 		try {
-			if (!PLUGIN_LOADER_EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
-				PLUGIN_LOADER_EXECUTOR.shutdownNow();
+			if (pluginLoaderExecutor != null && !pluginLoaderExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+				pluginLoaderExecutor.shutdownNow();
 			}
-			if (!TOOLTIP_PREP_EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
-				TOOLTIP_PREP_EXECUTOR.shutdownNow();
+			if (tooltipPrepExecutor != null && !tooltipPrepExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+				tooltipPrepExecutor.shutdownNow();
 			}
-			synchronized (JeiThreadFactory.class) {
-				if (searchForkJoinPool != null && !searchForkJoinPool.awaitTermination(5, TimeUnit.SECONDS)) {
-					searchForkJoinPool.shutdownNow();
-				}
+			if (searchForkJoinPool != null && !searchForkJoinPool.awaitTermination(2, TimeUnit.SECONDS)) {
+				searchForkJoinPool.shutdownNow();
 			}
-			if (!SCHEDULED_EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
-				SCHEDULED_EXECUTOR.shutdownNow();
+			if (scheduledExecutor != null && !scheduledExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+				scheduledExecutor.shutdownNow();
 			}
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			PLUGIN_LOADER_EXECUTOR.shutdownNow();
-			TOOLTIP_PREP_EXECUTOR.shutdownNow();
-			synchronized (JeiThreadFactory.class) {
-				if (searchForkJoinPool != null) {
-					searchForkJoinPool.shutdownNow();
-				}
-			}
-			SCHEDULED_EXECUTOR.shutdownNow();
+			if (pluginLoaderExecutor != null) pluginLoaderExecutor.shutdownNow();
+			if (tooltipPrepExecutor != null) tooltipPrepExecutor.shutdownNow();
+			if (searchForkJoinPool != null) searchForkJoinPool.shutdownNow();
+			if (scheduledExecutor != null) scheduledExecutor.shutdownNow();
 		}
+
+		pluginLoaderExecutor = null;
+		tooltipPrepExecutor = null;
+		searchForkJoinPool = null;
+		scheduledExecutor = null;
 
 		LOGGER.info("JEI thread pools shut down");
 	}

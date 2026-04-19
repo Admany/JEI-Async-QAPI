@@ -23,11 +23,14 @@ final class DelayedExecutor implements IDelayedExecutor {
 	private DelayedExecutor() {
 		var threadFactory = new ThreadFactoryBuilder()
 			.setNameFormat("JEI Deduplicating Run Executor %d")
+			.setDaemon(true)
 			.build();
 		var service = new ScheduledThreadPoolExecutor(
 			1,
 			threadFactory
 		);
+		service.setKeepAliveTime(60L, TimeUnit.SECONDS);
+		service.allowCoreThreadTimeOut(true);
 		service.setRemoveOnCancelPolicy(true);
 		this.service = service;
 	}

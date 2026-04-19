@@ -42,4 +42,10 @@ public class FileWatcher {
 			thread.start();
 		}
 	}
+
+	public void stop() {
+		if (thread != null) {
+			thread.interrupt();
+		}
+	}
 }
