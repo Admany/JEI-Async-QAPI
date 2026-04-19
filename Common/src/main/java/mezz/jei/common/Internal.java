@@ -39,14 +39,10 @@ public final class Internal {
 
 	public static Textures getTextures() {
 		if (textures == null) {
-			synchronized (Internal.class) {
-				if (textures == null) {
-					Minecraft minecraft = Minecraft.getInstance();
-					TextureManager textureManager = minecraft.getTextureManager();
-					JeiSpriteUploader spriteUploader = new JeiSpriteUploader(textureManager);
-					textures = new Textures(spriteUploader);
-				}
-			}
+			Minecraft minecraft = Minecraft.getInstance();
+			TextureManager textureManager = minecraft.getTextureManager();
+			JeiSpriteUploader spriteUploader = new JeiSpriteUploader(textureManager);
+			textures = new Textures(spriteUploader);
 		}
 		return textures;
 	}

@@ -1,6 +1,5 @@
 package mezz.jei.library.plugins.jei;
 
-import mezz.jei.api.IAsyncCompatiblePlugin;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.ModIds;
@@ -32,7 +31,7 @@ import java.util.List;
 import java.util.function.Function;
 
 @JeiPlugin
-public class JeiInternalPlugin implements IModPlugin, IAsyncCompatiblePlugin {
+public class JeiInternalPlugin implements IModPlugin {
 	private final List<TagInfoRecipeMaker<?, ?>> tagInfoRecipeMakers = new ArrayList<>();
 
 	@Override
