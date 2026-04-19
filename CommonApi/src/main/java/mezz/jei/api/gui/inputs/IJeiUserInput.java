@@ -9,20 +9,20 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 /**
  * Represents a click or key press.
  *
- * @since 15.9.0
+ * @since 19.6.0
  */
 public interface IJeiUserInput {
 	/**
 	 * Vanilla information about a click or key press.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	InputConstants.Key getKey();
 
 	/**
 	 * Modifiers passed into methods like {@link GuiEventListener#mouseClicked}
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	int getModifiers();
 
@@ -33,7 +33,7 @@ public interface IJeiUserInput {
 	 *
 	 * Key up is ignored because JEI handles key down immediately.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	boolean isSimulate();
 
@@ -42,7 +42,7 @@ public interface IJeiUserInput {
 	 *
 	 * @return true if this input and modifiers match the given key mapping.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	boolean is(KeyMapping keyMapping);
 
@@ -52,7 +52,7 @@ public interface IJeiUserInput {
 	 *
 	 * @return true if this input and modifiers match the given key mapping.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	boolean is(IJeiKeyMapping keyMapping);
 }

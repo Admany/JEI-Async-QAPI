@@ -20,14 +20,31 @@ public class ErrorIngredientHelper implements IIngredientHelper<ErrorIngredient>
 		return "JEI Error Item #" + ingredient.crashType();
 	}
 
+	@SuppressWarnings("removal")
 	@Override
 	public String getUniqueId(ErrorIngredient ingredient, UidContext context) {
 		return "JEI_error_" + ingredient.crashType();
 	}
 
 	@Override
+	public Object getUid(ErrorIngredient ingredient, UidContext context) {
+		return ingredient.crashType();
+	}
+
+	@SuppressWarnings("removal")
+	@Override
+	public String getWildcardId(ErrorIngredient ingredient) {
+		return "JEI_error";
+	}
+
+	@Override
+	public Object getGroupingUid(ErrorIngredient ingredient) {
+		return IIngredientHelper.super.getGroupingUid(ingredient);
+	}
+
+	@Override
 	public ResourceLocation getResourceLocation(ErrorIngredient ingredient) {
-		return new ResourceLocation(ModIds.JEI_ID, "error_" + ingredient.crashType().toString().toLowerCase(Locale.ROOT));
+		return ResourceLocation.fromNamespaceAndPath(ModIds.JEI_ID, "error_" + ingredient.crashType().toString().toLowerCase(Locale.ROOT));
 	}
 
 	@Override

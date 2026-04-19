@@ -1,13 +1,14 @@
 package mezz.jei.library.plugins.vanilla.ingredients.subtypes;
 
-import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
+import mezz.jei.api.ingredients.subtypes.ISubtypeInterpreter;
 import mezz.jei.api.ingredients.subtypes.UidContext;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.BlockItemStateProperties;
 import net.minecraft.world.level.block.LightBlock;
+import org.jetbrains.annotations.Nullable;
 
-public class LightSubtypeInterpreter implements IIngredientSubtypeInterpreter<ItemStack> {
+public class LightSubtypeInterpreter implements ISubtypeInterpreter<ItemStack> {
 	public static final LightSubtypeInterpreter INSTANCE = new LightSubtypeInterpreter();
 
 	private LightSubtypeInterpreter() {
@@ -15,16 +16,24 @@ public class LightSubtypeInterpreter implements IIngredientSubtypeInterpreter<It
 	}
 
 	@Override
-	public String apply(ItemStack itemStack, UidContext context) {
-		CompoundTag compoundtag = itemStack.getTagElement("BlockStateTag");
-
-		if (compoundtag != null) {
-			Tag tag = compoundtag.get(LightBlock.LEVEL.getName());
-			if (tag != null) {
-				return tag.getAsString();
-			}
+	public @Nullable Object getSubtypeData(ItemStack ingredient, UidContext context) {
+		BlockItemStateProperties properties = ingredient.get(DataComponents.BLOCK_STATE);
+		if (properties == null) {
+			return null;
 		}
+		return properties.get(LightBlock.LEVEL);
+	}
 
-		return "15";
+	@Override
+	public String getLegacyStringSubtypeInfo(ItemStack ingredient, UidContext context) {
+		BlockItemStateProperties properties = ingredient.get(DataComponents.BLOCK_STATE);
+		if (properties == null) {
+			return "";
+		}
+		Integer level = properties.get(LightBlock.LEVEL);
+		if (level == null) {
+			return "";
+		}
+		return level.toString();
 	}
 }

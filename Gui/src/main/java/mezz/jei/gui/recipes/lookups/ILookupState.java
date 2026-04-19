@@ -2,7 +2,7 @@ package mezz.jei.gui.recipes.lookups;
 
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.category.IRecipeCategory;
-import mezz.jei.gui.recipes.RecipeLayoutWithButtons;
+import mezz.jei.gui.recipes.IRecipeLayoutWithButtons;
 import mezz.jei.gui.recipes.layouts.IRecipeLayoutList;
 
 import java.util.List;
@@ -22,19 +22,19 @@ public interface ILookupState {
 
 	IFocusedRecipes<?> getFocusedRecipes();
 
-	void nextRecipeCategory();
+	boolean nextRecipeCategory();
 
-	void previousRecipeCategory();
+	boolean previousRecipeCategory();
 
 	void goToFirstPage();
 
-	void nextPage();
+	boolean nextPage();
 
-	void previousPage();
+	boolean previousPage();
 
 	int pageCount();
 
-	default List<RecipeLayoutWithButtons<?>> getVisible(IRecipeLayoutList recipes) {
+	default List<IRecipeLayoutWithButtons<?>> getVisible(IRecipeLayoutList recipes) {
 		final int recipesPerPage = getRecipesPerPage();
 		final int firstRecipeIndex = getRecipeIndex() - (getRecipeIndex() % recipesPerPage);
 		final int maxIndex = Math.min(recipes.size(), firstRecipeIndex + recipesPerPage);

@@ -89,7 +89,7 @@ public class TagInfoRecipeCategory<R extends ITagInfoRecipe, T extends RecipeTyp
 		scrollGridWidget.setPosition(0, 0, getWidth(), getHeight(), HorizontalAlignment.CENTER, VerticalAlignment.BOTTOM);
 
 		IRecipeSlotDrawable inputSlot = recipeSlots.getSlots(RecipeIngredientRole.INPUT)
-			.get(0);
+			.getFirst();
 		inputSlot.setPosition(scrollGridWidget.getScreenRectangle().position().x() + 1, 1);
 	}
 

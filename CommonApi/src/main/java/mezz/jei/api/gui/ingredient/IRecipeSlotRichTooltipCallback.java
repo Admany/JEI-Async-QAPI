@@ -10,14 +10,14 @@ import mezz.jei.api.gui.builder.ITooltipBuilder;
  * Implement a tooltip callback and add it with
  * {@link IRecipeSlotBuilder#addRichTooltipCallback(IRecipeSlotRichTooltipCallback)}
  *
- * @since 15.12.3
+ * @since 19.8.5
  */
 @FunctionalInterface
 public interface IRecipeSlotRichTooltipCallback {
 	/**
 	 * Add to the tooltip for an ingredient.
 	 *
-	 * @since 15.12.3
+	 * @since 19.8.5
 	 */
 	void onRichTooltip(IRecipeSlotView recipeSlotView, ITooltipBuilder tooltip);
 }

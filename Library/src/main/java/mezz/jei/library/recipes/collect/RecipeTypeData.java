@@ -15,8 +15,8 @@ import java.util.Set;
 public class RecipeTypeData<T> {
 	private final IRecipeCategory<T> recipeCategory;
 	private final List<ITypedIngredient<?>> recipeCategoryCatalysts;
-	private final List<T> recipes = java.util.Collections.synchronizedList(new ArrayList<>());
-	private final Set<T> hiddenRecipes = java.util.Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+	private final List<T> recipes = new ArrayList<>();
+	private final Set<T> hiddenRecipes = Collections.newSetFromMap(new IdentityHashMap<>());
 
 	public RecipeTypeData(IRecipeCategory<T> recipeCategory, List<ITypedIngredient<?>> recipeCategoryCatalysts) {
 		this.recipeCategory = recipeCategory;

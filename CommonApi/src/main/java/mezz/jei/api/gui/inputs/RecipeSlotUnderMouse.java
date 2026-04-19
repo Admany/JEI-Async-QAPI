@@ -12,13 +12,13 @@ import net.minecraft.client.gui.navigation.ScreenPosition;
  * @param slot the slot under the mouse
  * @param offset the offset for this slot, relative to the caller
  *
- * @since 15.9.0
+ * @since 19.6.0
  */
 public record RecipeSlotUnderMouse(IRecipeSlotDrawable slot, ScreenPosition offset) {
 	/**
 	 * Convenience function to create a new {@link RecipeSlotUnderMouse} with the given integer offsets.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	public RecipeSlotUnderMouse(IRecipeSlotDrawable slot, int xOffset, int yOffset) {
 		this(slot, new ScreenPosition(xOffset, yOffset));
@@ -28,7 +28,7 @@ public record RecipeSlotUnderMouse(IRecipeSlotDrawable slot, ScreenPosition offs
 	 * Convenience function to create a new {@link RecipeSlotUnderMouse} by adding the given integer offsets.
 	 * This is useful when passing slots up a stack of nested widgets.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	public RecipeSlotUnderMouse addOffset(int xOffset, int yOffset) {
 		return new RecipeSlotUnderMouse(slot, this.offset.x() + xOffset, this.offset.y() + yOffset);
@@ -37,7 +37,7 @@ public record RecipeSlotUnderMouse(IRecipeSlotDrawable slot, ScreenPosition offs
 	/**
 	 * Check if the mouse is still over this slot, from the perspective of the caller.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	public boolean isMouseOver(double mouseX, double mouseY) {
 		double relativeMouseX = mouseX - offset.x();

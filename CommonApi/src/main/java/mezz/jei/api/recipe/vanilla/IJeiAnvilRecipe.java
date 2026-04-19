@@ -40,7 +40,7 @@ public interface IJeiAnvilRecipe {
 
 	/**
 	 * Unique ID for this recipe.
-	 * @since 15.5.0
+	 * @since 19.1.0
 	 */
 	@Nullable
 	ResourceLocation getUid();

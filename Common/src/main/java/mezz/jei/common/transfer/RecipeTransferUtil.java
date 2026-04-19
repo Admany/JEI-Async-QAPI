@@ -7,6 +7,7 @@ import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.helpers.IStackHelper;
+import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.transfer.IRecipeTransferError;
@@ -20,9 +21,10 @@ import net.minecraft.world.item.ItemStack;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,8 +104,7 @@ public final class RecipeTransferUtil {
 				.toList();
 			if (!invalidRecipeIndexes.isEmpty()) {
 				LOGGER.error(
-					"Transfer request has invalid slots for the destination of the recipe, " +
-					"the slots are not included in the list of crafting slots. {}",
+					"Transfer request has invalid slots for the destination of the recipe,  the slots are not included in the list of crafting slots. {}",
 					StringUtil.intsToString(invalidRecipeIndexes)
 				);
 				return false;
@@ -142,20 +143,19 @@ public final class RecipeTransferUtil {
 			}
 		}
 
-		// check that all slots can be picked up by the player
+		// check that all slots are real (not output slots)
 		{
-			List<Integer> invalidPickupSlots = Stream.concat(
+			List<Integer> invalidFakeSlots = Stream.concat(
 					craftingSlots.stream(),
 					inventorySlots.stream()
 				)
-				.filter(Slot::hasItem)
-				.filter(slot -> !slot.mayPickup(player))
+				.filter(Slot::isFake)
 				.map(slot -> slot.index)
 				.toList();
-			if (!invalidPickupSlots.isEmpty()) {
+			if (!invalidFakeSlots.isEmpty()) {
 				LOGGER.error(
-					"Transfer request has invalid slots, the player is unable to pickup from them: {}",
-					StringUtil.intsToString(invalidPickupSlots)
+					"Transfer request has invalid slots, they are fake slots (recipe outputs): {}",
+					StringUtil.intsToString(invalidFakeSlots)
 				);
 				return false;
 			}
@@ -180,35 +180,23 @@ public final class RecipeTransferUtil {
 		// and also split them between "equal" groups
 		Map<IRecipeSlotView, Map<ItemStack, ArrayList<PhantomSlotState>>> relevantSlots = new IdentityHashMap<>();
 
-		Map<IRecipeSlotView, Set<String>> slotUidCache = new IdentityHashMap<>();
+		Map<IRecipeSlotView, Set<Object>> slotUidCache = new IdentityHashMap<>();
 		List<IRecipeSlotView> nonEmptyRequiredStacks = requiredItemStacks.stream()
 			.filter(r -> !r.isEmpty())
 			.toList();
 
+		UidHashStrategy uidHashStrategy = new UidHashStrategy(stackhelper);
+
 		for (Map.Entry<Slot, ItemStack> slotTuple : availableItemStacks.entrySet()) {
 			ItemStack slotItemStack = slotTuple.getValue();
-			String slotItemStackUid = stackhelper.getUniqueIdentifierForStack(slotItemStack, UidContext.Ingredient);
+			Object slotItemStackUid = stackhelper.getUidForStack(slotItemStack, UidContext.Recipe);
 
 			for (IRecipeSlotView ingredient : nonEmptyRequiredStacks) {
-				Set<String> ingredientUids = slotUidCache.computeIfAbsent(ingredient, s ->
-					s.getItemStacks()
-					.map(i -> stackhelper.getUniqueIdentifierForStack(i, UidContext.Ingredient))
-					.collect(Collectors.toSet())
-				);
+				Set<Object> ingredientUids = slotUidCache.computeIfAbsent(ingredient, s -> calculateUids(s, stackhelper));
 
 				if (ingredientUids.contains(slotItemStackUid)) {
 					relevantSlots
-						.computeIfAbsent(ingredient, it -> new Object2ObjectOpenCustomHashMap<>(new Hash.Strategy<>() {
-							@Override
-							public int hashCode(ItemStack o) {
-								return o.getItem().hashCode();
-							}
-
-							@Override
-							public boolean equals(ItemStack a, ItemStack b) {
-								return stackhelper.isEquivalent(a, b, UidContext.Ingredient);
-							}
-						}))
+						.computeIfAbsent(ingredient, it -> new Object2ObjectOpenCustomHashMap<>(uidHashStrategy))
 						.computeIfAbsent(slotItemStack, it -> new ArrayList<>())
 						.add(new PhantomSlotState(slotTuple.getKey(), slotItemStack));
 				}
@@ -300,6 +288,22 @@ public final class RecipeTransferUtil {
 		return transferOperations;
 	}
 
+	private static Set<Object> calculateUids(IRecipeSlotView recipeSlotView, IStackHelper stackhelper) {
+		List<@Nullable ITypedIngredient<?>> allIngredientsList = recipeSlotView.getAllIngredientsList();
+		Set<Object> uids = new HashSet<>(allIngredientsList.size());
+		for (ITypedIngredient<?> typedIngredient : allIngredientsList) {
+			if (typedIngredient == null) {
+				continue;
+			}
+			ITypedIngredient<ItemStack> typedItemStack = typedIngredient.castToItemStackType();
+			if (typedItemStack != null) {
+				Object uid = stackhelper.getUidForStack(typedItemStack, UidContext.Recipe);
+				uids.add(uid);
+			}
+		}
+		return uids;
+	}
+
 	private record PhantomSlotState(Slot slot, ItemStack itemStack) {}
 
 	private record PhantomSlotStateList(List<PhantomSlotState> stateList, long totalItemCount) {
@@ -315,6 +319,24 @@ public final class RecipeTransferUtil {
 				}
 			}
 			return null;
+		}
+	}
+
+	private static class UidHashStrategy implements Hash.Strategy<ItemStack> {
+		private final IStackHelper stackhelper;
+
+		public UidHashStrategy(IStackHelper stackhelper) {
+			this.stackhelper = stackhelper;
+		}
+
+		@Override
+		public int hashCode(ItemStack o) {
+			return o.getItem().hashCode();
+		}
+
+		@Override
+		public boolean equals(ItemStack a, ItemStack b) {
+			return stackhelper.isEquivalent(a, b, UidContext.Recipe);
 		}
 	}
 }

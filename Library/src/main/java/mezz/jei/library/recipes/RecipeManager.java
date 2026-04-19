@@ -1,8 +1,11 @@
 package mezz.jei.library.recipes;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableListMultimap;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.drawable.IScalableDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
+import mezz.jei.api.ingredients.IIngredientSupplier;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.IRecipeCatalystLookup;
@@ -11,15 +14,21 @@ import mezz.jei.api.recipe.IRecipeLookup;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
+import mezz.jei.api.recipe.advanced.IRecipeButtonControllerFactory;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.category.extensions.IRecipeCategoryDecorator;
 import mezz.jei.api.runtime.IIngredientManager;
+import mezz.jei.common.Internal;
+import mezz.jei.common.gui.RecipeLayoutDrawableErrored;
+import mezz.jei.common.gui.elements.DrawableBlank;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.core.util.Pair;
 import mezz.jei.library.gui.ingredients.CycleTimer;
 import mezz.jei.library.gui.recipes.RecipeLayout;
 import mezz.jei.library.gui.recipes.layout.builder.RecipeSlotBuilder;
+import mezz.jei.library.util.IngredientSupplierHelper;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.Collection;
 import java.util.List;
@@ -29,10 +38,20 @@ import java.util.Set;
 public class RecipeManager implements IRecipeManager {
 	private final RecipeManagerInternal internal;
 	private final IIngredientManager ingredientManager;
+	private final ImmutableListMultimap<RecipeType<?>, IRecipeCategoryDecorator<?>> recipeCategoryDecorators;
+	private final List<IRecipeButtonControllerFactory> recipeButtonControllerFactories;
 
-	public RecipeManager(RecipeManagerInternal internal, IIngredientManager ingredientManager) {
+	public RecipeManager(
+		RecipeManagerInternal internal,
+		IIngredientManager ingredientManager,
+		ImmutableListMultimap<RecipeType<?>,
+		IRecipeCategoryDecorator<?>> recipeCategoryDecorators,
+		List<IRecipeButtonControllerFactory> recipeButtonControllerFactories
+	) {
 		this.internal = internal;
 		this.ingredientManager = ingredientManager;
+		this.recipeCategoryDecorators = recipeCategoryDecorators;
+		this.recipeButtonControllerFactories = recipeButtonControllerFactories;
 	}
 
 	@Override
@@ -67,6 +86,46 @@ public class RecipeManager implements IRecipeManager {
 		});
 	}
 
+	@Unmodifiable
+	@SuppressWarnings("unchecked")
+	private <T> List<IRecipeCategoryDecorator<T>> getRecipeCategoryDecorators(RecipeType<T> recipeType) {
+		ImmutableList<IRecipeCategoryDecorator<?>> decorators = recipeCategoryDecorators.get(recipeType);
+		return (List<IRecipeCategoryDecorator<T>>) (Object) decorators;
+	}
+
+	@Override
+	public <T> IRecipeLayoutDrawable<T> createRecipeLayoutDrawableOrShowError(IRecipeCategory<T> recipeCategory, T recipe, IFocusGroup focusGroup) {
+		ErrorUtil.checkNotNull(recipeCategory, "recipeCategory");
+		ErrorUtil.checkNotNull(recipe, "recipe");
+		ErrorUtil.checkNotNull(focusGroup, "focusGroup");
+
+		RecipeType<T> recipeType = recipeCategory.getRecipeType();
+		Collection<IRecipeCategoryDecorator<T>> decorators = getRecipeCategoryDecorators(recipeType);
+
+		final IScalableDrawable recipeBackground;
+		final int borderPadding;
+		if (recipeCategory.needsRecipeBorder()) {
+			recipeBackground = Internal.getTextures().getRecipeBackground();
+			borderPadding = 4;
+		} else {
+			recipeBackground = DrawableBlank.EMPTY;
+			borderPadding = 0;
+		}
+
+		return RecipeLayout.create(
+			recipeCategory,
+			decorators,
+			recipe,
+			focusGroup,
+			ingredientManager,
+			recipeBackground,
+			borderPadding
+		)
+		.orElseGet(() -> {
+			return new RecipeLayoutDrawableErrored<>(recipeCategory, recipe, recipeBackground, borderPadding);
+		});
+	}
+
 	@Override
 	public <T> Optional<IRecipeLayoutDrawable<T>> createRecipeLayoutDrawable(IRecipeCategory<T> recipeCategory, T recipe, IFocusGroup focusGroup) {
 		ErrorUtil.checkNotNull(recipeCategory, "recipeCategory");
@@ -74,13 +133,26 @@ public class RecipeManager implements IRecipeManager {
 		ErrorUtil.checkNotNull(focusGroup, "focusGroup");
 
 		RecipeType<T> recipeType = recipeCategory.getRecipeType();
-		Collection<IRecipeCategoryDecorator<T>> decorators = internal.getRecipeCategoryDecorators(recipeType);
+		Collection<IRecipeCategoryDecorator<T>> decorators = getRecipeCategoryDecorators(recipeType);
+
+		final IScalableDrawable recipeBackground;
+		final int borderPadding;
+		if (recipeCategory.needsRecipeBorder()) {
+			recipeBackground = Internal.getTextures().getRecipeBackground();
+			borderPadding = 4;
+		} else {
+			recipeBackground = DrawableBlank.EMPTY;
+			borderPadding = 0;
+		}
+
 		return RecipeLayout.create(
 			recipeCategory,
 			decorators,
 			recipe,
 			focusGroup,
-			ingredientManager
+			ingredientManager,
+			recipeBackground,
+			borderPadding
 		);
 	}
 
@@ -98,7 +170,7 @@ public class RecipeManager implements IRecipeManager {
 		ErrorUtil.checkNotNull(background, "background");
 
 		RecipeType<T> recipeType = recipeCategory.getRecipeType();
-		Collection<IRecipeCategoryDecorator<T>> decorators = internal.getRecipeCategoryDecorators(recipeType);
+		Collection<IRecipeCategoryDecorator<T>> decorators = getRecipeCategoryDecorators(recipeType);
 		return RecipeLayout.create(
 			recipeCategory,
 			decorators,
@@ -117,6 +189,11 @@ public class RecipeManager implements IRecipeManager {
 		CycleTimer cycleTimer = CycleTimer.create(ingredientCycleOffset);
 		Pair<Integer, IRecipeSlotDrawable> result = builder.build(focusedIngredients, cycleTimer);
 		return result.second();
+	}
+
+	@Override
+	public <T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> recipeCategory, T recipe) {
+		return IngredientSupplierHelper.getIngredientSupplier(recipe, recipeCategory, ingredientManager);
 	}
 
 	@Override
@@ -167,5 +244,10 @@ public class RecipeManager implements IRecipeManager {
 	@Override
 	public Optional<RecipeType<?>> getRecipeType(ResourceLocation recipeUid) {
 		return internal.getRecipeType(recipeUid);
+	}
+
+	@Override
+	public List<IRecipeButtonControllerFactory> getRecipeButtonControllerFactories() {
+		return recipeButtonControllerFactories;
 	}
 }

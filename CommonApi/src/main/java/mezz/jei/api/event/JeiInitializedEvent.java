@@ -12,7 +12,7 @@ package mezz.jei.api.event;
  * and the {@link mezz.jei.api.runtime.IJeiRuntime} is available.
  * </p>
  * <p>
- * <strong>Forge Usage:</strong>
+ * <strong>NeoForge Usage:</strong>
  * </p>
  * <pre>{@code
  * @SubscribeEvent
@@ -30,7 +30,7 @@ package mezz.jei.api.event;
  * });
  * }</pre>
  *
- * @since 1.20.1-async
+ * @since 1.21.1-async
  */
 public class JeiInitializedEvent {
 	// Marker event - no data needed

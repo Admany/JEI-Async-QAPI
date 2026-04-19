@@ -31,7 +31,7 @@ import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.bookmarks.RecipeBookmark;
 import mezz.jei.gui.input.UserInput;
 import mezz.jei.gui.overlay.IngredientGridTooltipHelper;
-import mezz.jei.gui.overlay.bookmarks.IngredientsTooltipComponent;
+import mezz.jei.common.gui.IngredientsTooltipComponent;
 import mezz.jei.gui.overlay.bookmarks.PreviewTooltipComponent;
 import mezz.jei.gui.recipes.RecipeCategoryIconUtil;
 import mezz.jei.gui.util.FocusUtil;
@@ -66,7 +66,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 	@Override
 	public ITypedIngredient<I> getTypedIngredient() {
-		return recipeBookmark.getRecipeOutput();
+		return recipeBookmark.getDisplayIngredient();
 	}
 
 	@Override
@@ -120,7 +120,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 	@Override
 	public void getTooltip(JeiTooltip tooltip, IngredientGridTooltipHelper tooltipHelper, IIngredientRenderer<I> ingredientRenderer, IIngredientHelper<I> ingredientHelper) {
-		ITypedIngredient<I> recipeOutput = recipeBookmark.getRecipeOutput();
+		ITypedIngredient<I> displayIngredient = recipeBookmark.getDisplayIngredient();
 		R recipe = recipeBookmark.getRecipe();
 
 		IRecipeCategory<R> recipeCategory = recipeBookmark.getRecipeCategory();
@@ -128,7 +128,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 		addBookmarkTooltipFeaturesIfEnabled(tooltip);
 
-		if (recipeBookmark.getDisplayRole() == RecipeIngredientRole.OUTPUT) {
+		if (recipeBookmark.isDisplayIsOutput()) {
 			IJeiRuntime jeiRuntime = Internal.getJeiRuntime();
 			IIngredientManager ingredientManager = jeiRuntime.getIngredientManager();
 			IModIdHelper modIdHelper = jeiRuntime.getJeiHelpers().getModIdHelper();
@@ -136,7 +136,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 			ResourceLocation recipeName = recipeCategory.getRegistryName(recipe);
 			if (recipeName != null) {
 				String recipeModId = recipeName.getNamespace();
-				ResourceLocation ingredientName = ingredientHelper.getResourceLocation(recipeOutput.getIngredient());
+				ResourceLocation ingredientName = ingredientHelper.getResourceLocation(displayIngredient.getIngredient());
 				String ingredientModId = ingredientName.getNamespace();
 				if (!recipeModId.equals(ingredientModId)) {
 					String modName = modIdHelper.getFormattedModNameForModId(recipeModId);
@@ -147,7 +147,7 @@ public class RecipeBookmarkElement<R, I> implements IElement<I> {
 
 			tooltip.add(Component.empty());
 
-			SafeIngredientUtil.getTooltip(tooltip, ingredientManager, ingredientRenderer, recipeOutput);
+			SafeIngredientUtil.getRichTooltip(tooltip, ingredientManager, ingredientRenderer, displayIngredient);
 		}
 	}
 

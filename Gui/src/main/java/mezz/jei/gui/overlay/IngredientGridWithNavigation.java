@@ -444,7 +444,7 @@ public class IngredientGridWithNavigation implements IRecipeFocusSource {
 		}
 
 		@Override
-		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaY) {
+		public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
 			if (!mouseOverable.isMouseOver(mouseX, mouseY)) {
 				return Optional.empty();
 			}

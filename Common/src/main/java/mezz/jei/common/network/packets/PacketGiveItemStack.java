@@ -1,19 +1,26 @@
 package mezz.jei.common.network.packets;
 
-import mezz.jei.common.network.IPacketId;
-import mezz.jei.common.network.PacketIdServer;
-import mezz.jei.common.network.ServerPacketContext;
-import mezz.jei.common.network.ServerPacketData;
+import mezz.jei.api.constants.ModIds;
 import mezz.jei.common.config.GiveMode;
+import mezz.jei.common.network.codecs.EnumStreamCodec;
+import mezz.jei.common.network.ServerPacketContext;
 import mezz.jei.common.util.ServerCommandUtil;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.concurrent.CompletableFuture;
+public class PacketGiveItemStack extends PlayToServerPacket<PacketGiveItemStack> {
+	public static final CustomPacketPayload.Type<PacketGiveItemStack> TYPE = new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(ModIds.JEI_ID, "give_item_stack"));
+	public static final StreamCodec<RegistryFriendlyByteBuf, PacketGiveItemStack> STREAM_CODEC = StreamCodec.composite(
+		ItemStack.STREAM_CODEC,
+		p -> p.itemStack,
+		new EnumStreamCodec<>(GiveMode.class),
+		p -> p.giveMode,
+		PacketGiveItemStack::new
+	);
 
-public class PacketGiveItemStack extends PacketJei {
 	private final ItemStack itemStack;
 	private final GiveMode giveMode;
 
@@ -23,23 +30,17 @@ public class PacketGiveItemStack extends PacketJei {
 	}
 
 	@Override
-	public IPacketId getPacketId() {
-		return PacketIdServer.GIVE_ITEM;
+	public Type<PacketGiveItemStack> type() {
+		return TYPE;
 	}
 
 	@Override
-	public void writePacketData(FriendlyByteBuf buf) {
-		buf.writeItem(itemStack);
-		buf.writeEnum(giveMode);
+	public StreamCodec<RegistryFriendlyByteBuf, PacketGiveItemStack> streamCodec() {
+		return STREAM_CODEC;
 	}
 
-	public static CompletableFuture<Void> readPacketData(ServerPacketData data) {
-		FriendlyByteBuf buf = data.buf();
-		ItemStack itemStack = buf.readItem();
-		GiveMode giveMode = buf.readEnum(GiveMode.class);
-		ServerPacketContext context = data.context();
-		ServerPlayer player = context.player();
-		MinecraftServer server = player.server;
-		return server.submit(() -> ServerCommandUtil.executeGive(context, itemStack, giveMode));
+	@Override
+	public void process(ServerPacketContext context) {
+		ServerCommandUtil.executeGive(context, itemStack, giveMode);
 	}
 }

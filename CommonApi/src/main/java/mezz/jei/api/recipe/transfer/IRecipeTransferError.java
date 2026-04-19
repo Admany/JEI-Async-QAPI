@@ -1,8 +1,8 @@
 package mezz.jei.api.recipe.transfer;
 
 import mezz.jei.api.gui.builder.ITooltipBuilder;
-import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import net.minecraft.client.gui.GuiGraphics;
+import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -71,10 +71,10 @@ public interface IRecipeTransferError {
 	/**
 	 * Called on {@link Type#USER_FACING} and {@link Type#COSMETIC} errors.
 	 *
-	 * @since 15.7.0
+	 * @since 19.4.0
 	 * @deprecated use {@link #getTooltip(ITooltipBuilder)}
 	 */
-	@Deprecated(since = "15.8.4", forRemoval = true)
+	@Deprecated(since = "19.5.4", forRemoval = true)
 	default List<Component> getTooltip() {
 		return List.of();
 	}
@@ -82,7 +82,7 @@ public interface IRecipeTransferError {
 	/**
 	 * Called on {@link Type#USER_FACING} and {@link Type#COSMETIC} errors.
 	 *
-	 * @since 15.8.4
+	 * @since 19.5.4
 	 */
 	default void getTooltip(ITooltipBuilder tooltip) {
 		tooltip.addAll(getTooltip());
@@ -97,7 +97,7 @@ public interface IRecipeTransferError {
 	 * @return the number of input recipes slots are missing ingredient's in the player's inventory.
 	 *         Return -1 by default to avoid sorting
 	 *
-	 * @since 15.6.0
+	 * @since 19.2.0
 	 */
 	default int getMissingCountHint() {
 		return -1;

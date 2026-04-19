@@ -1,5 +1,7 @@
 package mezz.jei.gui.startup;
 
+import com.mojang.serialization.Codec;
+import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.helpers.IJeiHelpers;
@@ -24,7 +26,10 @@ import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.core.util.LoggedTimer;
+import mezz.jei.gui.bookmarks.BookmarkCodec;
 import mezz.jei.gui.bookmarks.BookmarkList;
+import mezz.jei.gui.bookmarks.IBookmark;
+import mezz.jei.gui.bookmarks.BookmarkFactory;
 import mezz.jei.gui.config.IBookmarkConfig;
 import mezz.jei.gui.config.ILookupHistoryConfig;
 import mezz.jei.gui.config.IngredientTypeSortingConfig;
@@ -53,6 +58,7 @@ import mezz.jei.gui.overlay.IngredientListOverlay;
 import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistory;
 import mezz.jei.gui.recipes.RecipesGui;
+import mezz.jei.gui.search.SearchStringCache;
 import mezz.jei.gui.util.FocusUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -60,6 +66,7 @@ import net.minecraft.core.RegistryAccess;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -86,6 +93,7 @@ public class JeiGuiStarter {
 		IModIdHelper modIdHelper = jeiHelpers.getModIdHelper();
 		IFocusFactory focusFactory = jeiHelpers.getFocusFactory();
 		IGuiHelper guiHelper = jeiHelpers.getGuiHelper();
+		ICodecHelper codecHelper = jeiHelpers.getCodecHelper();
 
 		IFilterTextSource filterTextSource = new FilterTextSource();
 		Minecraft minecraft = Minecraft.getInstance();
@@ -94,15 +102,9 @@ public class JeiGuiStarter {
 
 		RegistryAccess registryAccess = level.registryAccess();
 
-		@SuppressWarnings("unchecked")
-		List<IListElementInfo<?>> ingredientList = (List<IListElementInfo<?>>) registration.getInternalIngredientList()
-			.orElseGet(() -> {
-				LOGGER.info("Building ingredient list (Sync fallback)...");
-				timer.start("Building ingredient list");
-				List<IListElementInfo<?>> list = IngredientListElementFactory.createBaseList(ingredientManager, modIdHelper);
-				timer.stop();
-				return list;
-			});
+		timer.start("Building ingredient list");
+		List<IListElementInfo<?>> ingredientList = IngredientListElementFactory.createBaseList(ingredientManager, modIdHelper);
+		timer.stop();
 
 		timer.start("Building ingredient filter");
 		GuiConfigData configData = GuiConfigData.create();
@@ -127,6 +129,8 @@ public class JeiGuiStarter {
 			ingredientList
 		);
 
+		SearchStringCache searchStringCache = createSearchStringCache(ingredientList);
+
 		IngredientFilter ingredientFilter = new IngredientFilter(
 			filterTextSource,
 			clientConfig,
@@ -137,7 +141,8 @@ public class JeiGuiStarter {
 			modIdHelper,
 			ingredientVisibility,
 			colorHelper,
-			toggleState
+			toggleState,
+			searchStringCache
 		);
 		ingredientManager.registerIngredientListener(ingredientFilter);
 		ingredientVisibility.registerListener(ingredientFilter);
@@ -146,12 +151,17 @@ public class JeiGuiStarter {
 		IIngredientFilter ingredientFilterApi = new IngredientFilterApi(ingredientFilter, filterTextSource);
 		registration.setIngredientFilter(ingredientFilterApi);
 
+		BookmarkFactory bookmarkFactory = new BookmarkFactory(codecHelper, registryAccess, ingredientManager);
+		Codec<IBookmark> bookmarkCodec = BookmarkCodec.create(codecHelper, ingredientManager, recipeManager, bookmarkFactory).codec();
+
 		LookupHistory lookupHistory = new LookupHistory(
 			recipeManager,
 			ingredientManager,
-			focusFactory,
+			registryAccess,
+			codecHelper,
 			clientConfig::getMaxLookupHistoryIngredients,
-			lookupHistoryConfig
+			lookupHistoryConfig,
+			bookmarkCodec
 		);
 
 		IngredientListOverlay ingredientListOverlay = OverlayHelper.createIngredientListOverlay(
@@ -171,8 +181,8 @@ public class JeiGuiStarter {
 		);
 		registration.setIngredientListOverlay(ingredientListOverlay);
 
-		BookmarkList bookmarkList = new BookmarkList(recipeManager, focusFactory, ingredientManager, registryAccess, bookmarkConfig, clientConfig, guiHelper);
-		bookmarkConfig.loadBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, bookmarkList);
+		BookmarkList bookmarkList = new BookmarkList(recipeManager, focusFactory, ingredientManager, registryAccess, bookmarkConfig, clientConfig, guiHelper, codecHelper, bookmarkFactory, bookmarkCodec);
+		bookmarkConfig.loadBookmarks(recipeManager, focusFactory, guiHelper, ingredientManager, registryAccess, bookmarkList, codecHelper, bookmarkCodec, bookmarkFactory);
 
 		BookmarkOverlay bookmarkOverlay = OverlayHelper.createBookmarkOverlay(
 			ingredientManager,
@@ -198,13 +208,14 @@ public class JeiGuiStarter {
 
 		RecipesGui recipesGui = new RecipesGui(
 			recipeManager,
-			recipeTransferManager,
 			ingredientManager,
+			recipeTransferManager,
 			keyMappings,
 			focusFactory,
 			bookmarkList,
 			lookupHistory,
-			guiHelper
+			guiHelper,
+			bookmarkFactory
 		);
 		registration.setRecipesGui(recipesGui);
 
@@ -253,5 +264,23 @@ public class JeiGuiStarter {
 			clientInputHandler,
 			resourceReloadHandler
 		);
+	}
+
+	private static SearchStringCache createSearchStringCache(
+		List<IListElementInfo<?>> ingredientList
+	) {
+		Minecraft minecraft = Minecraft.getInstance();
+		String locale = minecraft.options.languageCode;
+
+		List<String> resourceIds = new ArrayList<>(ingredientList.size());
+		for (IListElementInfo<?> info : ingredientList) {
+			resourceIds.add(info.getResourceLocation().toString());
+		}
+
+		String cacheKey = SearchStringCache.computeCacheKey(resourceIds, locale);
+		LOGGER.info("Search string cache key: {} (ingredients={}, locale={})", cacheKey.substring(0, 16), resourceIds.size(), locale);
+		SearchStringCache cache = new SearchStringCache(cacheKey);
+		cache.load();
+		return cache;
 	}
 }

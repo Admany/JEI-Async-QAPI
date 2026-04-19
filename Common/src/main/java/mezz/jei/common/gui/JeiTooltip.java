@@ -1,6 +1,10 @@
 package mezz.jei.common.gui;
 
+import com.google.gson.JsonElement;
 import com.mojang.datafixers.util.Either;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
+import com.mojang.serialization.JsonOps;
 import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.helpers.IJeiHelpers;
 import mezz.jei.api.helpers.IModIdHelper;
@@ -15,14 +19,19 @@ import mezz.jei.common.Internal;
 import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.platform.IPlatformRenderHelper;
 import mezz.jei.common.platform.Services;
-import mezz.jei.common.util.SafeIngredientUtil;
+import mezz.jei.common.util.ErrorUtil;
 import net.minecraft.ChatFormatting;
+import net.minecraft.CrashReport;
+import net.minecraft.ReportedException;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
@@ -63,6 +72,7 @@ public class JeiTooltip implements ITooltipBuilder {
 		this.typedIngredient = typedIngredient;
 	}
 
+	@Override
 	public void addKeyUsageComponent(String translationKey, IJeiKeyMapping keyMapping) {
 		MutableComponent translatedKeyMessage = keyMapping.getTranslatedKeyMessage().copy();
 		addKeyUsageComponent(translationKey, translatedKeyMessage);
@@ -84,6 +94,16 @@ public class JeiTooltip implements ITooltipBuilder {
 		}
 	}
 
+	@Override
+	public void clearIngredient() {
+		this.typedIngredient = null;
+	}
+
+	@Override
+	public List<Either<FormattedText, TooltipComponent>> getLines() {
+		return lines;
+	}
+
 	public void addAll(JeiTooltip tooltip) {
 		lines.addAll(tooltip.lines);
 	}
@@ -92,9 +112,8 @@ public class JeiTooltip implements ITooltipBuilder {
 		return lines.isEmpty() && typedIngredient == null;
 	}
 
-	@SuppressWarnings("removal")
-	@Override
-	public List<Component> toLegacyToComponents() {
+	@Deprecated
+	public List<Component> getLegacyComponents() {
 		return lines.stream()
 			.<Component>mapMulti((e, consumer) -> {
 				e.left().ifPresent(f -> {
@@ -108,6 +127,14 @@ public class JeiTooltip implements ITooltipBuilder {
 
 	@SuppressWarnings("removal")
 	@Override
+	@Deprecated
+	public List<Component> toLegacyToComponents() {
+		return getLegacyComponents();
+	}
+
+	@SuppressWarnings("removal")
+	@Override
+	@Deprecated
 	public void removeAll(List<Component> components) {
 		for (Component component : components) {
 			lines.remove(Either.left(component));
@@ -138,7 +165,7 @@ public class JeiTooltip implements ITooltipBuilder {
 		try {
 			renderHelper.renderTooltip(guiGraphics, lines, x, y, font, ItemStack.EMPTY);
 		} catch (RuntimeException e) {
-			throw new RuntimeException("Crashed when rendering tooltip:\n" + this);
+			throw new RuntimeException("Crashed when rendering tooltip:\n" + this, e);
 		}
 	}
 
@@ -164,11 +191,7 @@ public class JeiTooltip implements ITooltipBuilder {
 
 		itemStack.getTooltipImage()
 			.ifPresent((c) -> {
-				if (lines.size() > 1) {
-					lines.add(1, Either.right(c));
-				} else {
-					lines.add(Either.right(c));
-				}
+				lines.add(1, Either.right(c));
 			});
 
 		addDebugInfo(ingredientManager, typedIngredient);
@@ -181,17 +204,15 @@ public class JeiTooltip implements ITooltipBuilder {
 		if (isEmpty()) {
 			return;
 		}
-
-		SafeIngredientUtil.renderTooltip(
-			guiGraphics,
-			this,
-			x,
-			y,
-			font,
-			itemStack,
-			typedIngredient,
-			ingredientManager
-		);
+		try {
+			IPlatformRenderHelper renderHelper = Services.PLATFORM.getRenderHelper();
+			renderHelper.renderTooltip(guiGraphics, lines, x, y, font, itemStack);
+		} catch (RuntimeException e) {
+			CrashReport crashReport = ErrorUtil.createIngredientCrashReport(e, "Rendering ingredient tooltip", ingredientManager, typedIngredient);
+			crashReport.addCategory("tooltip")
+				.setDetail("value", this);
+			throw new ReportedException(crashReport);
+		}
 	}
 
 	private <T> void addDebugInfo(IIngredientManager ingredientManager,  ITypedIngredient<T> typedIngredient) {
@@ -201,6 +222,7 @@ public class JeiTooltip implements ITooltipBuilder {
 		T ingredient = typedIngredient.getIngredient();
 		IIngredientType<T> type = typedIngredient.getType();
 		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(type);
+		Codec<T> ingredientCodec = ingredientManager.getIngredientCodec(type);
 
 		add(Component.empty());
 		add(
@@ -208,25 +230,42 @@ public class JeiTooltip implements ITooltipBuilder {
 				.withStyle(ChatFormatting.DARK_GRAY)
 		);
 		add(
-			Component.literal("* type: " + ingredientHelper.getIngredientType().getUid())
+			Component.literal("• type: " + ingredientHelper.getIngredientType().getUid())
 				.withStyle(ChatFormatting.DARK_GRAY)
 		);
 		add(
-			Component.literal("* has subtypes: " + (ingredientHelper.hasSubtypes(ingredient) ? "true" : "false"))
+			Component.literal("• has subtypes: " + (ingredientHelper.hasSubtypes(ingredient) ? "true" : "false"))
 				.withStyle(ChatFormatting.DARK_GRAY)
 		);
 		add(
-			Component.literal("* uid: " + ingredientHelper.getUniqueId(ingredient, UidContext.Ingredient))
+			Component.literal("• uid: " + ingredientHelper.getUid(ingredient, UidContext.Ingredient))
 				.withStyle(ChatFormatting.DARK_GRAY)
 		);
+		try {
+			Minecraft minecraft = Minecraft.getInstance();
+			ClientLevel level = minecraft.level;
+			assert level != null;
+			RegistryAccess registryAccess = level.registryAccess();
+			RegistryOps<JsonElement> registryOps = registryAccess.createSerializationContext(JsonOps.INSTANCE);
+			String jsonResult = ingredientCodec.encodeStart(registryOps, ingredient)
+					.mapOrElse(
+						JsonElement::toString,
+						DataResult.Error::message
+					);
+			add(
+				Component.literal("• json: " + jsonResult)
+					.withStyle(ChatFormatting.DARK_GRAY)
+			);
+		} catch (RuntimeException e) {
+			add(
+				Component.literal("• json crashed: " + e.getMessage())
+					.withStyle(ChatFormatting.DARK_RED)
+			);
+		}
 		add(
-			Component.literal("* extra info: " + ingredientHelper.getErrorInfo(ingredient))
+			Component.literal("• extra info: " + ingredientHelper.getErrorInfo(ingredient))
 				.withStyle(ChatFormatting.DARK_GRAY)
 		);
 		add(Component.empty());
-	}
-
-	public List<Either<FormattedText, TooltipComponent>> getLines() {
-		return new ArrayList<>(lines);
 	}
 }

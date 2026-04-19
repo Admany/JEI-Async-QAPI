@@ -9,7 +9,7 @@ import net.minecraft.client.gui.navigation.ScreenRectangle;
  *
  * For JEI-like input handling, use {@link IJeiInputHandler} instead.
  *
- * @since 15.9.0
+ * @since 19.6.0
  */
 public interface IJeiGuiEventListener {
 	/**
@@ -18,7 +18,7 @@ public interface IJeiGuiEventListener {
 	 * Mouse coordinates passed to this handler are translated so that when
 	 * the mouse is at this area's position, it is passed to this handler as if it were (0, 0).
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	ScreenRectangle getArea();
 
@@ -28,7 +28,7 @@ public interface IJeiGuiEventListener {
 	 * @param mouseX the X coordinate of the mouse relative to the parent element.
 	 * @param mouseY the Y coordinate of the mouse relative to the parent element.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	default void mouseMoved(double mouseX, double mouseY) {
 
@@ -43,7 +43,7 @@ public interface IJeiGuiEventListener {
 	 * @param mouseY the Y coordinate of the mouse relative to the parent element.
 	 * @param button the button that was clicked.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	default boolean mouseClicked(double mouseX, double mouseY, int button) {
 		return false;
@@ -58,7 +58,7 @@ public interface IJeiGuiEventListener {
 	 * @param mouseY the Y coordinate of the mouse relative to the parent element.
 	 * @param button the button that was released.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	default boolean mouseReleased(double mouseX, double mouseY, int button) {
 		return false;
@@ -75,7 +75,7 @@ public interface IJeiGuiEventListener {
 	 * @param dragX  the X distance of the drag.
 	 * @param dragY  the Y distance of the drag.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	default boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
 		return false;
@@ -88,11 +88,12 @@ public interface IJeiGuiEventListener {
 	 *
 	 * @param mouseX the X coordinate of the mouse relative to the parent element.
 	 * @param mouseY the Y coordinate of the mouse relative to the parent element.
-	 * @param scrollDelta the Y distance of the scroll.
+	 * @param scrollX  the X distance of the scroll.
+	 * @param scrollY  the Y distance of the scroll.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
-	default boolean mouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+	default boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
 		return false;
 	}
 
@@ -107,7 +108,7 @@ public interface IJeiGuiEventListener {
 	 * @param scanCode  the scan code of the pressed key.
 	 * @param modifiers the keyboard modifiers.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	default boolean keyPressed(double mouseX, double mouseY, int keyCode, int scanCode, int modifiers) {
 		return false;

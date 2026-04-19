@@ -17,7 +17,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -74,12 +73,13 @@ public class ElementSearchLowMem implements IElementSearch {
 	}
 
 	@Override
-	public <T> Optional<IListElement<T>> findElement(ITypedIngredient<T> typedIngredient, IIngredientHelper<T> ingredientHelper) {
+	public @Nullable <T> IListElement<T> findElement(ITypedIngredient<T> typedIngredient, IIngredientHelper<T> ingredientHelper) {
 		T ingredient = typedIngredient.getIngredient();
 		IIngredientType<T> type = typedIngredient.getType();
-		Function<ITypedIngredient<T>, Object> uidFunction = (i) -> ingredientHelper.getUniqueId(i.getIngredient(), UidContext.Ingredient);
+		Function<ITypedIngredient<T>, Object> uidFunction = (i) -> ingredientHelper.getUid(i, UidContext.Ingredient);
 		Object ingredientUid = uidFunction.apply(typedIngredient);
 		String lowercaseDisplayName = DisplayNameUtil.getLowercaseDisplayNameForSearch(ingredient, ingredientHelper);
+
 		ElementPrefixParser.TokenInfo tokenInfo = new ElementPrefixParser.TokenInfo(lowercaseDisplayName, ElementPrefixParser.NO_PREFIX);
 		PrefixInfo<IListElementInfo<?>, IListElement<?>> prefixInfo = tokenInfo.prefixInfo();
 
@@ -88,12 +88,12 @@ public class ElementSearchLowMem implements IElementSearch {
 				IListElement<?> element = elementInfo.getElement();
 				IListElement<T> match = checkForMatch(element, type, ingredientUid, uidFunction);
 				if (match != null) {
-					return Optional.of(match);
+					return match;
 				}
 			}
 		}
 
-		return Optional.empty();
+		return null;
 	}
 
 	@Nullable
@@ -102,7 +102,6 @@ public class ElementSearchLowMem implements IElementSearch {
 		if (cast == null) {
 			return null;
 		}
-
 		ITypedIngredient<T> typedIngredient = cast.getTypedIngredient();
 		Object elementUid = uidFunction.apply(typedIngredient);
 		if (uid.equals(elementUid)) {

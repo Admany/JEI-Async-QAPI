@@ -39,7 +39,7 @@ public interface IGuiClickableArea {
 	 * @deprecated use {@link #getTooltip(ITooltipBuilder)}
 	 */
 	@SuppressWarnings("DeprecatedIsStillUsed")
-	@Deprecated(since = "15.8.4", forRemoval = true)
+	@Deprecated(since = "19.5.4", forRemoval = true)
 	default List<Component> getTooltipStrings() {
 		return Collections.emptyList();
 	}
@@ -48,7 +48,7 @@ public interface IGuiClickableArea {
 	 * Add the tooltip elements to be shown on the tooltip when this area is hovered over.
 	 * Leave it empty to display the default "Show Recipes" message.
 	 *
-	 * @since 15.8.4
+	 * @since 19.5.4
 	 */
 	default void getTooltip(ITooltipBuilder tooltip) {
 		tooltip.addAll(getTooltipStrings());

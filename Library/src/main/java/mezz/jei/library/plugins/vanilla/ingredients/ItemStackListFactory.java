@@ -14,6 +14,7 @@ import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.item.CreativeModeTab;
@@ -37,10 +38,10 @@ import java.util.stream.Collectors;
 public final class ItemStackListFactory {
 	private static final Logger LOGGER = LogManager.getLogger();
 
-	public static List<ItemStack> create(StackHelper stackHelper) {
+	public static List<ItemStack> create(StackHelper stackHelper, ItemStackHelper itemStackHelper) {
 		IJeiClientConfigs jeiClientConfigs = Internal.getJeiClientConfigs();
 		IClientConfig clientConfig = jeiClientConfigs.getClientConfig();
-		final boolean showHidden = clientConfig.isShowHiddenItemsEnabled();
+		final boolean showHidden = clientConfig.getShowHiddenIngredients();
 
 		final List<ItemStack> itemList = new ArrayList<>();
 		final Set<Object> itemUidSet = new HashSet<>();
@@ -104,7 +105,8 @@ public final class ItemStackListFactory {
 			}
 
 			if (displayItems.isEmpty() && searchTabDisplayItems.isEmpty()) {
-				LOGGER.warn(
+				Level logLevel = isKnownEmptyTab(tab) ? Level.DEBUG : Level.WARN;
+				LOGGER.log(logLevel,
 					"Item Group has no display items and no search tab display items. " +
 					"Items from this group will be missing from the JEI ingredient list. {}",
 					tab.getDisplayName().getString()
@@ -117,6 +119,7 @@ public final class ItemStackListFactory {
 				"displayItems",
 				tab,
 				stackHelper,
+				itemStackHelper,
 				itemList,
 				itemUidSet
 			);
@@ -126,6 +129,7 @@ public final class ItemStackListFactory {
 					"searchTabDisplayItems",
 					tab,
 					stackHelper,
+					itemStackHelper,
 					itemList,
 					itemUidSet
 				);
@@ -139,11 +143,17 @@ public final class ItemStackListFactory {
 		return itemList;
 	}
 
+	private static boolean isKnownEmptyTab(CreativeModeTab tab) {
+		return tab.getDisplayName().getContents() instanceof TranslatableContents translatableContents &&
+			translatableContents.getKey().equals("itemGroup.op");
+	}
+
 	private static void addFromTab(
 		Collection<ItemStack> tabDisplayItems,
 		String displayType,
 		CreativeModeTab tab,
 		StackHelper stackHelper,
+		ItemStackHelper itemStackHelper,
 		List<ItemStack> itemList,
 		Set<Object> itemUidSet
 	) {
@@ -153,20 +163,33 @@ public final class ItemStackListFactory {
 		int duplicateInTabCount = 0;
 		for (ItemStack itemStack : tabDisplayItems) {
 			if (itemStack.isEmpty()) {
-				LOGGER.error("Found an empty itemStack in '{}' creative tab's {}", tab, displayType);
-			} else {
-				Object itemKey = safeGetUid(stackHelper, itemStack);
-				if (itemKey != null) {
-					if (tabUidSet.contains(itemKey)) {
-						duplicateInTab.add(itemKey);
-						duplicateInTabCount++;
-					}
-					if (itemUidSet.add(itemKey)) {
-						tabUidSet.add(itemKey);
-						itemList.add(itemStack);
-						added++;
-					}
-				}
+				String errorInfo = itemStackHelper.getErrorInfo(itemStack);
+				LOGGER.error("Found an empty itemStack in '{}' creative tab's {}: {}", tab, displayType, errorInfo);
+				continue;
+			}
+			if (!itemStackHelper.isValidIngredient(itemStack)) {
+				String errorInfo = itemStackHelper.getErrorInfo(itemStack);
+				LOGGER.error("Ignoring ingredient in '{}' creative tab's {} that is considered invalid: {}", tab, displayType, errorInfo);
+				continue;
+			}
+			if (!itemStackHelper.isIngredientOnServer(itemStack)) {
+				String errorInfo = itemStackHelper.getErrorInfo(itemStack);
+				LOGGER.warn("Ignoring ingredient in '{}' creative tab's {} that isn't on the server: {}", tab, displayType, errorInfo);
+				continue;
+			}
+			Object itemKey = safeGetUid(stackHelper, itemStack);
+			if (itemKey == null) {
+				continue;
+			}
+
+			if (tabUidSet.contains(itemKey)) {
+				duplicateInTab.add(itemKey);
+				duplicateInTabCount++;
+			}
+			if (itemUidSet.add(itemKey)) {
+				tabUidSet.add(itemKey);
+				itemList.add(itemStack);
+				added++;
 			}
 		}
 		if (LOGGER.isDebugEnabled()) {
@@ -253,15 +276,12 @@ public final class ItemStackListFactory {
 
 	@Nullable
 	private static Object safeGetUid(StackHelper stackHelper, ItemStack stack) {
-		if (stackHelper.hasSubtypes(stack)) {
-			try {
-				return stackHelper.getUniqueIdentifierForStack(stack, UidContext.Ingredient);
-			} catch (RuntimeException | LinkageError e) {
-				String stackInfo = ErrorUtil.getItemStackInfo(stack);
-				LOGGER.error("Couldn't get unique name for itemStack {}", stackInfo, e);
-				return null;
-			}
+		try {
+			return stackHelper.getUidForStack(stack, UidContext.Ingredient);
+		} catch (RuntimeException | LinkageError e) {
+			String stackInfo = ErrorUtil.getItemStackInfo(stack);
+			LOGGER.error("Couldn't get unique name for itemStack {}", stackInfo, e);
+			return null;
 		}
-		return stack.getItem();
 	}
 }

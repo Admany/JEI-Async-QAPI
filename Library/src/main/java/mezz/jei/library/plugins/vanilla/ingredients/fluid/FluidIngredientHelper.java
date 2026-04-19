@@ -4,16 +4,15 @@ import com.google.common.base.MoreObjects;
 import mezz.jei.api.constants.Tags;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.ingredients.IIngredientHelper;
-import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.IIngredientTypeWithSubtypes;
 import mezz.jei.api.ingredients.subtypes.ISubtypeManager;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
-import mezz.jei.common.platform.IPlatformRegistry;
-import mezz.jei.common.platform.Services;
+import mezz.jei.common.util.RegistryUtil;
 import mezz.jei.common.util.TagUtil;
 import net.minecraft.core.Holder;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Registry;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -32,7 +31,7 @@ public class FluidIngredientHelper<T> implements IIngredientHelper<T> {
 	private final ISubtypeManager subtypeManager;
 	private final IColorHelper colorHelper;
 	private final IPlatformFluidHelperInternal<T> platformFluidHelper;
-	private final IPlatformRegistry<Fluid> registry;
+	private final Registry<Fluid> registry;
 	private final IIngredientTypeWithSubtypes<Fluid, T> fluidType;
 	private final TagKey<Fluid> hiddenFromRecipeViewers;
 
@@ -40,15 +39,15 @@ public class FluidIngredientHelper<T> implements IIngredientHelper<T> {
 		this.subtypeManager = subtypeManager;
 		this.colorHelper = colorHelper;
 		this.platformFluidHelper = platformFluidHelper;
-		this.registry = Services.PLATFORM.getRegistry(Registries.FLUID);
+		this.registry = RegistryUtil.getRegistry(Registries.FLUID);
 		this.fluidType = platformFluidHelper.getFluidIngredientType();
 		//noinspection deprecation
 		this.hiddenFromRecipeViewers = new TagKey<>(Registries.FLUID, Tags.HIDDEN_FROM_RECIPE_VIEWERS);
 	}
 
 	@Override
-	public IIngredientType<T> getIngredientType() {
-		return platformFluidHelper.getFluidIngredientType();
+	public IIngredientTypeWithSubtypes<Fluid, T> getIngredientType() {
+		return fluidType;
 	}
 
 	@Override
@@ -57,6 +56,7 @@ public class FluidIngredientHelper<T> implements IIngredientHelper<T> {
 		return displayName.getString();
 	}
 
+	@SuppressWarnings("removal")
 	@Override
 	public String getUniqueId(T ingredient, UidContext context) {
 		Fluid fluid = fluidType.getBase(ingredient);
@@ -76,10 +76,26 @@ public class FluidIngredientHelper<T> implements IIngredientHelper<T> {
 	}
 
 	@Override
+	public Object getGroupingUid(T ingredient) {
+		return fluidType.getBase(ingredient);
+	}
+
+	@SuppressWarnings("removal")
+	@Override
 	public String getWildcardId(T ingredient) {
 		Fluid fluid = fluidType.getBase(ingredient);
 		ResourceLocation registryName = getRegistryName(ingredient, fluid);
 		return "fluid:" + registryName;
+	}
+
+	@Override
+	public Object getUid(T ingredient, UidContext context) {
+		Fluid fluid = fluidType.getBase(ingredient);
+		Object subtypeData = subtypeManager.getSubtypeData(fluidType, ingredient, context);
+		if (subtypeData != null) {
+			return List.of(fluid, subtypeData);
+		}
+		return fluid;
 	}
 
 	@Override
@@ -109,11 +125,12 @@ public class FluidIngredientHelper<T> implements IIngredientHelper<T> {
 	}
 
 	private ResourceLocation getRegistryName(T ingredient, Fluid fluid) {
-		return registry.getRegistryName(fluid)
-			.orElseThrow(() -> {
-				String ingredientInfo = getErrorInfo(ingredient);
-				return new IllegalStateException("null registry name for: " + ingredientInfo);
-			});
+		ResourceLocation key = registry.getKey(fluid);
+		if (key == null) {
+			String ingredientInfo = getErrorInfo(ingredient);
+			throw new IllegalStateException("null registry name for: " + ingredientInfo);
+		}
+		return key;
 	}
 
 	@Override
@@ -137,18 +154,20 @@ public class FluidIngredientHelper<T> implements IIngredientHelper<T> {
 	public Stream<ResourceLocation> getTagStream(T ingredient) {
 		Fluid fluid = fluidType.getBase(ingredient);
 
-		return BuiltInRegistries.FLUID.getResourceKey(fluid)
-			.flatMap(BuiltInRegistries.FLUID::getHolder)
+		return registry.getResourceKey(fluid)
+			.flatMap(registry::getHolder)
 			.map(Holder::tags)
 			.orElse(Stream.of())
 			.map(TagKey::location);
 	}
 
-	@SuppressWarnings("deprecation")
 	@Override
 	public boolean isHiddenFromRecipeViewersByTags(T ingredient) {
 		Fluid fluid = fluidType.getBase(ingredient);
-		return fluid.is(hiddenFromRecipeViewers);
+		return registry.getResourceKey(fluid)
+			.flatMap(registry::getHolder)
+			.map(holder -> holder.is(hiddenFromRecipeViewers))
+			.orElse(false);
 	}
 
 	@SuppressWarnings("ConstantConditions")
@@ -168,21 +187,24 @@ public class FluidIngredientHelper<T> implements IIngredientHelper<T> {
 
 		toStringHelper.add("Amount", platformFluidHelper.getAmount(ingredient));
 
-		platformFluidHelper.getTag(ingredient)
-			.ifPresent(tag -> toStringHelper.add("Tag", tag));
+		DataComponentPatch components = platformFluidHelper.getComponentsPatch(ingredient);
+		if (!components.isEmpty()) {
+			toStringHelper.add("Components", components.toString());
+		}
 
 		return toStringHelper.toString();
 	}
 
 	@Override
 	public Optional<TagKey<?>> getTagKeyEquivalent(Collection<T> ingredients) {
-		return TagUtil.getTagEquivalent(ingredients, fluidType::getBase, BuiltInRegistries.FLUID::getTags);
+		Registry<Fluid> fluidRegistry = RegistryUtil.getRegistry(Registries.FLUID);
+		return TagUtil.getTagEquivalent(ingredients, fluidType::getBase, fluidRegistry::getTags);
 	}
 
 	@Override
 	public boolean isIngredientOnServer(T ingredient) {
 		Fluid fluid = fluidType.getBase(ingredient);
-		IPlatformRegistry<Fluid> registry = Services.PLATFORM.getRegistry(Registries.FLUID);
-		return registry.contains(fluid);
+		Registry<Fluid> registry = RegistryUtil.getRegistry(Registries.FLUID);
+		return registry.getKey(fluid) != null;
 	}
 }

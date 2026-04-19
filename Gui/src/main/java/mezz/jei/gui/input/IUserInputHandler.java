@@ -15,7 +15,7 @@ public interface IUserInputHandler {
 
 	}
 
-	default Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+	default Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
 		return Optional.empty();
 	}
 }

@@ -1,6 +1,7 @@
 package mezz.jei.api.recipe.category;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.serialization.Codec;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.builder.IRecipeSlotBuilder;
 import mezz.jei.api.gui.builder.ITooltipBuilder;
@@ -11,21 +12,27 @@ import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.gui.inputs.IJeiInputHandler;
 import mezz.jei.api.gui.widgets.IRecipeExtrasBuilder;
 import mezz.jei.api.gui.widgets.IRecipeWidget;
+import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.recipe.IFocusGroup;
+import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeType;
+import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
  * Defines a category of recipe, (i.e. Crafting Table Recipe, Furnace Recipe).
+ * Register it with {@link IRecipeCategoryRegistration#addRecipeCategories(IRecipeCategory[])}
+ *
  * Handles setting up the GUI for its recipe category in {@link #setRecipe(IRecipeLayoutBuilder, Object, IFocusGroup)}.
  * Also draws elements that are common to all recipes in the category like the background.
  */
@@ -47,13 +54,13 @@ public interface IRecipeCategory<T> {
 	/**
 	 * Returns the drawable background for a single recipe in this category.
 	 *
-	 * @apiNote this became nullable in 15.20.0.
+	 * @apiNote this became nullable in 19.19.0.
 	 * If the background is null, getWidth() and getHeight() must be overridden
 	 *
 	 * @deprecated you can optionally draw a background image in {@link #draw}, and specify the width and height with {@link #getWidth()} and {@link #getHeight()}
 	 */
 	@SuppressWarnings("DeprecatedIsStillUsed")
-	@Deprecated(since = "15.20.0", forRemoval = true)
+	@Deprecated(since = "19.19.0", forRemoval = true)
 	@Nullable
 	default IDrawable getBackground() {
 		return null;
@@ -112,10 +119,26 @@ public interface IRecipeCategory<T> {
 	 * so they can be used for caching and displaying recipe-specific
 	 * information more easily than from the recipe category directly.
 	 *
-	 * @since 15.9.0
+	 * @since 19.19.0
+	 * @deprecated use {@link #createRecipeExtras(IRecipeExtrasBuilder, Object, IFocusGroup)}, the recipe slots are in {@link IRecipeExtrasBuilder#getRecipeSlots()} now.
 	 */
-	default void createRecipeExtras(IRecipeExtrasBuilder builder, T recipe, IFocusGroup focuses) {
+	@Deprecated(since = "19.19.3", forRemoval = true)
+	default void createRecipeExtras(IRecipeExtrasBuilder builder, T recipe, IRecipeSlotsView recipeSlotsView, IFocusGroup focuses) {
 
+	}
+
+	/**
+	 * Create per-recipe extras like {@link IRecipeWidget} and {@link IJeiInputHandler}.
+	 *
+	 * These have access to a specific recipe, and will persist as long as a recipe layout is on screen,
+	 * so they can be used for caching and displaying recipe-specific
+	 * information more easily than from the recipe category directly.
+	 *
+	 * @since 19.6.0
+	 */
+	@SuppressWarnings("RedundantUnmodifiable")
+	default void createRecipeExtras(IRecipeExtrasBuilder builder, T recipe, IFocusGroup focuses) {
+		createRecipeExtras(builder, recipe, () -> Collections.unmodifiableList(builder.getRecipeSlots().getSlots()), focuses);
 	}
 
 	/**
@@ -155,7 +178,7 @@ public interface IRecipeCategory<T> {
 	 * @param recipeSlots the current recipe slots being drawn.
 	 * @param focuses the current focuses
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	default void onDisplayedIngredientsUpdate(T recipe, List<IRecipeSlotDrawable> recipeSlots, IFocusGroup focuses) {
 
@@ -177,7 +200,7 @@ public interface IRecipeCategory<T> {
 	 * @deprecated use {@link #getTooltip(ITooltipBuilder, Object, IRecipeSlotsView, double, double)}
 	 */
 	@SuppressWarnings("DeprecatedIsStillUsed")
-	@Deprecated(since = "15.8.4", forRemoval = true)
+	@Deprecated(since = "19.5.4", forRemoval = true)
 	default List<Component> getTooltipStrings(T recipe, IRecipeSlotsView recipeSlotsView, double mouseX, double mouseY) {
 		return List.of();
 	}
@@ -194,7 +217,7 @@ public interface IRecipeCategory<T> {
 	 * @param mouseX          the X position of the mouse, relative to the recipe.
 	 * @param mouseY          the Y position of the mouse, relative to the recipe.
 	 *
-	 * @since 15.8.4
+	 * @since 19.5.4
 	 */
 	default void getTooltip(ITooltipBuilder tooltip, T recipe, IRecipeSlotsView recipeSlotsView, double mouseX, double mouseY) {
 		List<Component> tooltipStrings = getTooltipStrings(recipe, recipeSlotsView, mouseX, mouseY);
@@ -216,7 +239,7 @@ public interface IRecipeCategory<T> {
 	 * {@link IRecipeExtrasBuilder#addInputHandler} or {@link IRecipeExtrasBuilder#addGuiEventListener}
 	 */
 	@SuppressWarnings("DeprecatedIsStillUsed")
-	@Deprecated(since = "15.9.0", forRemoval = true)
+	@Deprecated(since = "19.6.0", forRemoval = true)
 	default boolean handleInput(T recipe, double mouseX, double mouseY, InputConstants.Key input) {
 		return false;
 	}
@@ -236,7 +259,7 @@ public interface IRecipeCategory<T> {
 	 * This will also show the modId when the recipe modId and output item modId do not match.
 	 * This lets the player know where the recipe came from.
 	 *
-	 * Since 15.5.0, this is also used for bookmarking recipes.
+	 * Since 19.1.0, this is also used for bookmarking recipes.
 	 *
 	 * @return the registry name of the recipe, or null if there is none
 	 *
@@ -244,9 +267,44 @@ public interface IRecipeCategory<T> {
 	 */
 	@Nullable
 	default ResourceLocation getRegistryName(T recipe) {
-		if (recipe instanceof Recipe<?> vanillaRecipe) {
-			return vanillaRecipe.getId();
+		if (recipe instanceof RecipeHolder<?> recipeHolder) {
+			return recipeHolder.id();
 		}
 		return null;
+	}
+
+	/**
+	 * Get a codec for this type of recipe.
+	 *
+	 * The default implementation uses {@link #getRegistryName} to look up the recipes in an inefficient way.
+	 *
+	 * Override this method to provide a more efficient implementation,
+	 * or an implementation that doesn't depend on {@link #getRegistryName}
+	 *
+	 * @since 19.9.0
+	 */
+	default Codec<T> getCodec(ICodecHelper codecHelper, IRecipeManager recipeManager) {
+		RecipeType<T> recipeType = getRecipeType();
+		if (RecipeHolder.class.isAssignableFrom(recipeType.getRecipeClass())) {
+			@SuppressWarnings("unchecked")
+			Codec<T> recipeHolderCodec = (Codec<T>) codecHelper.getRecipeHolderCodec();
+			return recipeHolderCodec;
+		}
+		return codecHelper.getSlowRecipeCategoryCodec(this, recipeManager);
+	}
+
+	/**
+	 * @return true if JEI should draw a border around this recipe to
+	 * 				separate it visually from other recipes near it.
+	 * 				(most recipes should use this to help players navigate easily)
+	 *
+	 *         false if this recipe already draws a strong border that
+	 *         		separates it visually from the other recipes.
+	 *         		In this case, JEI will not draw another border around the recipe.
+	 *
+	 * @since 19.5.3
+	 */
+	default boolean needsRecipeBorder() {
+		return true;
 	}
 }

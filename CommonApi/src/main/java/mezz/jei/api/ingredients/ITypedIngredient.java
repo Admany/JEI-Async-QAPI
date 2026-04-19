@@ -4,6 +4,7 @@ import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.runtime.IIngredientManager;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 
@@ -40,6 +41,55 @@ public interface ITypedIngredient<T> {
 	 */
 	default <V> Optional<V> getIngredient(IIngredientType<V> ingredientType) {
 		return ingredientType.castIngredient(getIngredient());
+	}
+
+	/**
+	 * @return the ingredient wrapped by this instance, only if it matches the given type.
+	 * This is useful when handling a wildcard generic instance of `ITypedIngredient<?>`.
+	 *
+	 * @since 19.19.5
+	 */
+	@Nullable
+	default <V> V getCastIngredient(IIngredientType<V> ingredientType) {
+		return ingredientType.getCastIngredient(getIngredient());
+	}
+
+	/**
+	 * @return this instance, only if it matches the given type.
+	 * This is useful when handling a wildcard generic instance of `ITypedIngredient<?>`.
+	 *
+	 * @since 19.19.6
+	 */
+	@Nullable
+	default <V> ITypedIngredient<V> cast(IIngredientType<V> ingredientType) {
+		if (getType().equals(ingredientType)) {
+			@SuppressWarnings("unchecked")
+			ITypedIngredient<V> cast = (ITypedIngredient<V>) this;
+			return cast;
+		}
+		return null;
+	}
+
+	/**
+	 * @return this instance, only if it contains an ItemStack.
+	 * This is useful when handling a wildcard generic instance of `ITypedIngredient<?>`.
+	 *
+	 * @since 19.23.0
+	 */
+	@Nullable
+	default ITypedIngredient<ItemStack> castToItemStackType() {
+		return cast(VanillaTypes.ITEM_STACK);
+	}
+
+	/**
+	 * @return the ingredient's base ingredient. (For example, an ItemStack's base ingredient is the Item)
+	 *
+	 * @see IIngredientTypeWithSubtypes#getBase
+	 *
+	 * @since 19.19.4
+	 */
+	default <B> B getBaseIngredient(IIngredientTypeWithSubtypes<B, T> ingredientType) {
+		return ingredientType.getBase(getIngredient());
 	}
 
 	/**

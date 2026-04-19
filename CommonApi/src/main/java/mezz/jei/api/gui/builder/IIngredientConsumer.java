@@ -3,7 +3,7 @@ package mezz.jei.api.gui.builder;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.ItemLike;
@@ -23,21 +23,21 @@ import java.util.Optional;
  *
  * @apiNote this is meant to replace {@link IIngredientAcceptor} in future versions
  *
- * @since 15.12.1
+ * @since 19.8.3
  */
 @ApiStatus.NonExtendable
 public interface IIngredientConsumer {
 	/**
 	 * Add an ordered list of ingredients.
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	<I> IIngredientConsumer addIngredients(IIngredientType<I> ingredientType, List<@Nullable I> ingredients);
 
 	/**
 	 * Add one ingredient.
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	<I> IIngredientConsumer addIngredient(IIngredientType<I> ingredientType, I ingredient);
 
@@ -46,14 +46,14 @@ public interface IIngredientConsumer {
 	 * The type of ingredients can be mixed, as long as they are all valid ingredient types.
 	 * Prefer using {@link #addIngredients(IIngredientType, List)} for type safety.
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	IIngredientConsumer addIngredientsUnsafe(List<?> ingredients);
 
 	/**
 	 * Convenience function to add an ordered list of {@link ItemStack} from an {@link Ingredient}.
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	default IIngredientConsumer addIngredients(Ingredient ingredient) {
 		return addIngredients(VanillaTypes.ITEM_STACK, List.of(ingredient.getItems()));
@@ -62,7 +62,7 @@ public interface IIngredientConsumer {
 	/**
 	 * Add one typed ingredient.
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	default <I> IIngredientConsumer addTypedIngredient(ITypedIngredient<I> typedIngredient) {
 		return addIngredient(typedIngredient.getType(), typedIngredient.getIngredient());
@@ -73,7 +73,7 @@ public interface IIngredientConsumer {
 	 *
 	 * @param ingredients a non-null list of ingredients for the slot
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	IIngredientConsumer addTypedIngredients(List<ITypedIngredient<?>> ingredients);
 
@@ -83,14 +83,14 @@ public interface IIngredientConsumer {
 	 *
 	 * @param ingredients a non-null list of optional ingredients for the slot
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	IIngredientConsumer addOptionalTypedIngredients(List<Optional<ITypedIngredient<?>>> ingredients);
 
 	/**
 	 * Convenience function to add an order list of {@link ItemStack}.
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	default IIngredientConsumer addItemStacks(List<ItemStack> itemStacks) {
 		return addIngredients(VanillaTypes.ITEM_STACK, itemStacks);
@@ -99,7 +99,7 @@ public interface IIngredientConsumer {
 	/**
 	 * Convenience function to add one {@link ItemStack}.
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	default IIngredientConsumer addItemStack(ItemStack itemStack) {
 		return addIngredient(VanillaTypes.ITEM_STACK, itemStack);
@@ -108,7 +108,7 @@ public interface IIngredientConsumer {
 	/**
 	 * Convenience function to add one {@link ItemLike}.
 	 *
-	 * @since 15.19.4
+	 * @since 19.18.1
 	 */
 	default IIngredientConsumer addItemLike(ItemLike itemLike) {
 		return addItemStack(itemLike.asItem().getDefaultInstance());
@@ -120,8 +120,8 @@ public interface IIngredientConsumer {
 	 * To add multiple Fluid ingredients, you can call this multiple times.
 	 *
 	 * @see #addFluidStack(Fluid, long) to add a Fluid with an amount.
-	 * @see #addFluidStack(Fluid, long, CompoundTag) to add a Fluid with a {@link CompoundTag}.
-	 * @since 15.19.4
+	 * @see #addFluidStack(Fluid, long, DataComponentPatch) to add a Fluid with a {@link DataComponentPatch}.
+	 * @since 19.18.1
 	 */
 	IIngredientConsumer addFluidStack(Fluid fluid);
 
@@ -130,18 +130,20 @@ public interface IIngredientConsumer {
 	 *
 	 * To add multiple Fluid ingredients, you can call this multiple times.
 	 *
-	 * @see #addFluidStack(Fluid, long, CompoundTag)  to add a Fluid with a {@link CompoundTag}.
-	 * @since 15.12.1
+	 * @see #addFluidStack(Fluid, long) to add a Fluid with the default amount.
+	 * @see #addFluidStack(Fluid, long, DataComponentPatch) to add a Fluid with a {@link DataComponentPatch}.
+	 * @since 19.8.3
 	 */
 	IIngredientConsumer addFluidStack(Fluid fluid, long amount);
 
 	/**
-	 * Convenience helper to add one Fluid ingredient with a {@link CompoundTag}.
+	 * Convenience helper to add one Fluid ingredient with a {@link DataComponentPatch}.
 	 *
 	 * To add multiple Fluid ingredients, you can call this multiple times.
 	 *
-	 * @see #addFluidStack(Fluid, long) to add a Fluid without a {@link CompoundTag}.
-	 * @since 11.1.0
+	 * @see #addFluidStack(Fluid, long) to add a Fluid with the default amount.
+	 * @see #addFluidStack(Fluid, long) to add a Fluid without a {@link DataComponentPatch}.
+	 * @since 19.8.3
 	 */
-	IIngredientConsumer addFluidStack(Fluid fluid, long amount, CompoundTag tag);
+	IIngredientConsumer addFluidStack(Fluid fluid, long amount, DataComponentPatch component);
 }

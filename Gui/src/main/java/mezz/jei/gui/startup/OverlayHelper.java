@@ -22,8 +22,7 @@ import mezz.jei.gui.overlay.bookmarks.BookmarkOverlay;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistoryOverlay;
 
 public final class OverlayHelper {
-	private OverlayHelper() {
-	}
+	private OverlayHelper() {}
 
 	public static IngredientGridWithNavigation createIngredientGridWithNavigation(
 		String debugName,

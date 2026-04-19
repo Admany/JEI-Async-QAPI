@@ -1,12 +1,14 @@
 package mezz.jei.gui.overlay.bookmarks.history;
 
-import mezz.jei.api.recipe.IFocusFactory;
+import com.mojang.serialization.Codec;
+import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.bookmarks.IBookmark;
 import mezz.jei.gui.config.ILookupHistoryConfig;
 import mezz.jei.gui.overlay.IIngredientGridSource;
 import mezz.jei.gui.overlay.elements.IElement;
+import net.minecraft.core.RegistryAccess;
 import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.ArrayList;
@@ -19,35 +21,41 @@ public class LookupHistory implements IIngredientGridSource {
 	private final List<SourceListChangedListener> listeners = new ArrayList<>();
 	private final IRecipeManager recipeManager;
 	private final IIngredientManager ingredientManager;
-	private final IFocusFactory focusFactory;
+	private final RegistryAccess registryAccess;
+	private final ICodecHelper codecHelper;
 	private final Supplier<Integer> maxElements;
 	private final ILookupHistoryConfig lookupHistoryConfig;
+	private final Codec<IBookmark> bookmarkCodec;
 
 	public LookupHistory(
 		IRecipeManager recipeManager,
 		IIngredientManager ingredientManager,
-		IFocusFactory focusFactory,
+		RegistryAccess registryAccess,
+		ICodecHelper codecHelper,
 		Supplier<Integer> maxElements,
-		ILookupHistoryConfig lookupHistoryConfig
+		ILookupHistoryConfig lookupHistoryConfig,
+		Codec<IBookmark> bookmarkCodec
 	) {
 		this.recipeManager = recipeManager;
 		this.ingredientManager = ingredientManager;
-		this.focusFactory = focusFactory;
+		this.registryAccess = registryAccess;
+		this.codecHelper = codecHelper;
 		this.maxElements = maxElements;
 		this.lookupHistoryConfig = lookupHistoryConfig;
+		this.bookmarkCodec = bookmarkCodec;
 
-		List<IBookmark> loaded = lookupHistoryConfig.load(recipeManager, ingredientManager, focusFactory);
+		List<IBookmark> loaded = lookupHistoryConfig.load(recipeManager, ingredientManager, registryAccess, codecHelper, bookmarkCodec);
 		this.elements.addAll(loaded);
 	}
 
 	public void add(IBookmark element) {
 		elements.remove(element);
-		elements.add(0, element);
+		elements.addFirst(element);
 		if (elements.size() > maxElements.get()) {
-			elements.remove(elements.size() - 1);
+			elements.removeLast();
 		}
 		notifyListeners();
-		lookupHistoryConfig.save(recipeManager, ingredientManager, focusFactory, elements);
+		lookupHistoryConfig.save(recipeManager, ingredientManager, registryAccess, codecHelper, elements, bookmarkCodec);
 	}
 
 	@Override

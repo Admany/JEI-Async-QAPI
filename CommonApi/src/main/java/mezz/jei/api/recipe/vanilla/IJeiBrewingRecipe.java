@@ -50,10 +50,8 @@ public interface IJeiBrewingRecipe {
 
 	/**
 	 * Unique ID for this recipe.
-	 * @since 15.5.0
+	 * @since 19.1.0
 	 */
 	@Nullable
-	default ResourceLocation getUid() {
-		return null;
-	}
+	ResourceLocation getUid();
 }

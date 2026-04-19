@@ -1,21 +1,23 @@
 package mezz.jei.api;
 
 import mezz.jei.api.helpers.IPlatformFluidHelper;
+import mezz.jei.api.registration.IIngredientAliasRegistration;
+import mezz.jei.api.registration.IModInfoRegistration;
+import mezz.jei.api.registration.IRuntimeRegistration;
+import mezz.jei.api.runtime.config.IJeiConfigManager;
+import net.minecraft.resources.ResourceLocation;
+
 import mezz.jei.api.registration.IAdvancedRegistration;
 import mezz.jei.api.registration.IExtraIngredientRegistration;
 import mezz.jei.api.registration.IGuiHandlerRegistration;
-import mezz.jei.api.registration.IIngredientAliasRegistration;
 import mezz.jei.api.registration.IModIngredientRegistration;
 import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
 import mezz.jei.api.registration.IRecipeTransferRegistration;
-import mezz.jei.api.registration.IRuntimeRegistration;
 import mezz.jei.api.registration.ISubtypeRegistration;
 import mezz.jei.api.registration.IVanillaCategoryExtensionRegistration;
 import mezz.jei.api.runtime.IJeiRuntime;
-import mezz.jei.api.runtime.config.IJeiConfigManager;
-import net.minecraft.resources.ResourceLocation;
 
 /**
  * The main class to implement to create a JEI plugin. Everything communicated between a mod and JEI is through this class.
@@ -57,7 +59,7 @@ public interface IModPlugin {
 	 * Register extra ItemStacks that are not in the creative menu,
 	 * or FluidStacks that are different from the default ones available via the fluid registry.
 	 *
-	 * @since 15.19.0
+	 * @since 19.18.0
 	 */
 	default void registerExtraIngredients(IExtraIngredientRegistration registration) {
 
@@ -68,9 +70,18 @@ public interface IModPlugin {
 	 *
 	 * @implNote If the player has disabled search aliases in the config, this will not be called.
 	 *
-	 * @since 15.15.0
+	 * @since 19.10.0
 	 */
 	default void registerIngredientAliases(IIngredientAliasRegistration registration) {
+
+	}
+
+	/**
+	 * Register extra info about a mod, such as aliases for the mod that users can search for.
+	 *
+	 * @since 17.1.0
+	 */
+	default void registerModInfo(IModInfoRegistration modAliasRegistration) {
 
 	}
 

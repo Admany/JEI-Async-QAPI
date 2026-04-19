@@ -88,7 +88,6 @@ dependencies {
         name = "minecraft",
         version = minecraftVersion,
     )
-    @Suppress("UnstableApiUsage")
     mappings(loom.layered {
         officialMojangMappings()
         parchment("org.parchmentmc.data:parchment-${parchmentMinecraftVersion}:${parchmentVersionFabric}@zip")
@@ -128,28 +127,54 @@ loom {
             sourceSets.main.get().output.resourcesDir
         )
         val classPathGroups = listOf(dependencyJarPaths, classPaths, resourcesPaths).flatten()
-        val classPathGroupsString = classPathGroups.joinToString(separator = File.pathSeparator) {
-            it.absoluteFile.toString()
-        }
+        val classPathGroupsString = classPathGroups
+            .filterNotNull()
+            .joinToString(separator = File.pathSeparator) {
+                it.absoluteFile.toString()
+            }
 
         // loom 1.11 runDir takes a directory relative to the root directory
-        val loomRunDir = project.projectDir
-            .relativeTo(project.rootDir)
-            .resolve("run")
+        val loomRunDir = File("run")
 
         named("client") {
             client()
             configName = "Fabric Client"
             ideConfigGenerated(true)
             runDir(loomRunDir.resolve("client").toString())
-            vmArgs("-Dfabric.classPathGroups=${classPathGroupsString}")
+            vmArgs(
+                "-Dfabric.classPathGroups=${classPathGroupsString}",
+                "-Dfabric.log.level=info"
+            )
         }
         named("server") {
             server()
             configName = "Fabric Server"
             ideConfigGenerated(true)
             runDir(loomRunDir.resolve("server").toString())
-            vmArgs("-Dfabric.classPathGroups=${classPathGroupsString}")
+            vmArgs(
+                "-Dfabric.classPathGroups=${classPathGroupsString}",
+                "-Dfabric.log.level=info"
+            )
+        }
+        create("client debug") {
+            client()
+            configName = "Fabric Client Debug"
+            ideConfigGenerated(true)
+            runDir(loomRunDir.resolve("client").toString())
+            vmArgs(
+                "-Dfabric.classPathGroups=${classPathGroupsString}",
+                "-Dfabric.log.level=debug"
+            )
+        }
+        create("server debug") {
+            server()
+            configName = "Fabric Server Debug"
+            ideConfigGenerated(true)
+            runDir(loomRunDir.resolve("server").toString())
+            vmArgs(
+                "-Dfabric.classPathGroups=${classPathGroupsString}",
+                "-Dfabric.log.level=debug"
+            )
         }
     }
 
@@ -270,7 +295,7 @@ publishing {
 
 idea {
     module {
-        for (fileName in listOf("run", "out", "logs")) {
+        for (fileName in listOf("build", "run", "out", "logs")) {
             excludeDirs.add(file(fileName))
         }
     }

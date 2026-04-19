@@ -6,7 +6,7 @@ import net.minecraft.network.chat.Component;
 
 /**
  * Simple abstract implementation of {@link IRecipeCategory} to help simplify creating recipe categories.
- * @since 15.20.0
+ * @since 19.19.0
  */
 public abstract class AbstractRecipeCategory<T> implements IRecipeCategory<T> {
 	private final RecipeType<T> recipeType;
@@ -16,7 +16,7 @@ public abstract class AbstractRecipeCategory<T> implements IRecipeCategory<T> {
 	private final int height;
 
 	/**
-	 * @since 15.20.0
+	 * @since 19.19.0
 	 */
 	public AbstractRecipeCategory(RecipeType<T> recipeType, Component title, IDrawable icon, int width, int height) {
 		this.recipeType = recipeType;

@@ -3,6 +3,7 @@ package mezz.jei.gui.search;
 import it.unimi.dsi.fastutil.chars.Char2ObjectMap;
 import it.unimi.dsi.fastutil.chars.Char2ObjectOpenHashMap;
 import mezz.jei.api.helpers.IColorHelper;
+import mezz.jei.api.helpers.IModIdHelper;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.IIngredientFilterConfig;
 import mezz.jei.common.util.Translator;
@@ -34,7 +35,7 @@ public class ElementPrefixParser {
 
 	private final Char2ObjectMap<PrefixInfo<IListElementInfo<?>, IListElement<?>>> map = new Char2ObjectOpenHashMap<>();
 
-	public ElementPrefixParser(IIngredientManager ingredientManager, IIngredientFilterConfig config, IColorHelper colorHelper) {
+	public ElementPrefixParser(IIngredientManager ingredientManager, IIngredientFilterConfig config, IColorHelper colorHelper, IModIdHelper modIdHelper) {
 		addPrefix(new PrefixInfo<>(
 			'@',
 			config::getModNameSearchMode,
@@ -43,6 +44,13 @@ public class ElementPrefixParser {
 
 				if (config.getSearchModIds()) {
 					modNames.addAll(info.getModIds());
+				}
+
+				if (config.getSearchModAliases()) {
+					for (String modId : info.getModIds()) {
+						Set<String> modAliases = modIdHelper.getModAliases(modId);
+						modNames.addAll(modAliases);
+					}
 				}
 
 				if (config.getSearchShortModNames()) {
@@ -65,15 +73,15 @@ public class ElementPrefixParser {
 		));
 		addPrefix(new PrefixInfo<>(
 			'#',
-			config::getTooltipSearchMode,
-			e -> e.getTooltipStrings(config, ingredientManager),
-			GeneralizedSuffixTree::new
-		));
-		addPrefix(new PrefixInfo<>(
-			'$',
 			config::getTagSearchMode,
 			e -> e.getTagStrings(ingredientManager),
 			LimitedStringStorage::new
+		));
+		addPrefix(new PrefixInfo<>(
+			'$',
+			config::getTooltipSearchMode,
+			e -> e.getTooltipStrings(config, ingredientManager),
+			GeneralizedSuffixTree::new
 		));
 		addPrefix(new PrefixInfo<>(
 			'%',

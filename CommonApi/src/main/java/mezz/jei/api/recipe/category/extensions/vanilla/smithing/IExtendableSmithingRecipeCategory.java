@@ -9,7 +9,7 @@ import net.minecraft.world.item.crafting.SmithingRecipe;
  *
  * Get the instance from {@link IVanillaCategoryExtensionRegistration#getSmithingCategory()}
  *
- * @since 15.12.0
+ * @since 19.5.0
  */
 public interface IExtendableSmithingRecipeCategory {
 	/**
@@ -17,7 +17,7 @@ public interface IExtendableSmithingRecipeCategory {
 	 *
 	 * @param recipeClass  the subset class of crafting recipes to handle
 	 * @param extension    an extension for handling these recipes
-	 * @since 15.12.0
+	 * @since 19.5.0
 	 */
 	<R extends SmithingRecipe> void addExtension(
 		Class<? extends R> recipeClass,

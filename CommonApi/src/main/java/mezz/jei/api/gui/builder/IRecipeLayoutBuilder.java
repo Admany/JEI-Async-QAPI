@@ -22,7 +22,7 @@ public interface IRecipeLayoutBuilder {
 	 * @param y relative y position of the slot on the recipe layout.
 	 * @return a {@link IRecipeSlotBuilder} that has further methods for adding ingredients, etc.
 	 *
-	 * @since 15.20.0
+	 * @since 19.19.0
 	 */
 	default IRecipeSlotBuilder addInputSlot(int x, int y) {
 		return addSlot(RecipeIngredientRole.INPUT)
@@ -35,7 +35,7 @@ public interface IRecipeLayoutBuilder {
 	 *
 	 * @return a {@link IRecipeSlotBuilder} that has further methods for adding ingredients, setting position, etc.
 	 *
-	 * @since 15.20.0
+	 * @since 19.19.3
 	 */
 	default IRecipeSlotBuilder addInputSlot() {
 		return addSlot(RecipeIngredientRole.INPUT);
@@ -48,7 +48,7 @@ public interface IRecipeLayoutBuilder {
 	 * @param y relative y position of the slot on the recipe layout.
 	 * @return a {@link IRecipeSlotBuilder} that has further methods for adding ingredients, etc.
 	 *
-	 * @since 15.20.0
+	 * @since 19.19.0
 	 */
 	default IRecipeSlotBuilder addOutputSlot(int x, int y) {
 		return addSlot(RecipeIngredientRole.OUTPUT)
@@ -61,7 +61,7 @@ public interface IRecipeLayoutBuilder {
 	 *
 	 * @return a {@link IRecipeSlotBuilder} that has further methods for adding ingredients, setting position, etc.
 	 *
-	 * @since 15.20.0
+	 * @since 19.19.3
 	 */
 	default IRecipeSlotBuilder addOutputSlot() {
 		return addSlot(RecipeIngredientRole.OUTPUT);
@@ -88,7 +88,7 @@ public interface IRecipeLayoutBuilder {
 	 * @param role the {@link RecipeIngredientRole} of this slot (for lookups).
 	 * @return a {@link IRecipeSlotBuilder} that has further methods for adding ingredients, etc.
 	 *
-	 * @since 15.20.0
+	 * @since 19.19.1
 	 */
 	IRecipeSlotBuilder addSlot(RecipeIngredientRole role);
 
@@ -98,10 +98,10 @@ public interface IRecipeLayoutBuilder {
 	 *
 	 * @param widgetFactory the {@link mezz.jei.api.gui.widgets.ISlottedWidgetFactory} to assign this slot to.
 	 *
-	 * @since 15.10.0
+	 * @since 19.7.0
 	 * @deprecated there are easier ways to create slotted widgets now. Use {@link IRecipeExtrasBuilder#addSlottedWidget}.
 	 */
-	@Deprecated(since = "15.20.0", forRemoval = true)
+	@Deprecated(since = "19.19.3", forRemoval = true)
 	@SuppressWarnings("removal")
 	IRecipeSlotBuilder addSlotToWidget(RecipeIngredientRole role, mezz.jei.api.gui.widgets.ISlottedWidgetFactory<?> widgetFactory);
 

@@ -38,7 +38,7 @@ package mezz.jei.api;
  *     <li>Rendering operations</li>
  * </ul>
  *
- * @since 1.20.1-async
+ * @since 1.21.1-async
  */
 public interface IAsyncCompatiblePlugin {
 	/**

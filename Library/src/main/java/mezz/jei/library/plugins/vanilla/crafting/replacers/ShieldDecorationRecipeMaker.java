@@ -1,9 +1,10 @@
 package mezz.jei.library.plugins.vanilla.crafting.replacers;
 
 import mezz.jei.api.constants.ModIds;
+import mezz.jei.common.util.RegistryUtil;
 import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.ItemTags;
@@ -16,6 +17,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.ShapelessRecipe;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 
@@ -25,8 +27,8 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 public final class ShieldDecorationRecipeMaker {
-	public static List<CraftingRecipe> createRecipes() {
-		Iterable<Holder<Item>> banners = BuiltInRegistries.ITEM.getTagOrEmpty(ItemTags.BANNERS);
+	public static List<RecipeHolder<CraftingRecipe>> createRecipes() {
+		Iterable<Holder<Item>> banners = RegistryUtil.getRegistry(Registries.ITEM).getTagOrEmpty(ItemTags.BANNERS);
 
 		Set<DyeColor> colors = EnumSet.noneOf(DyeColor.class);
 
@@ -40,7 +42,7 @@ public final class ShieldDecorationRecipeMaker {
 			.toList();
 	}
 
-	private static CraftingRecipe createRecipe(BannerItem banner) {
+	private static RecipeHolder<CraftingRecipe> createRecipe(BannerItem banner) {
 		NonNullList<Ingredient> inputs = NonNullList.of(
 			Ingredient.EMPTY,
 			Ingredient.of(Items.SHIELD),
@@ -49,8 +51,9 @@ public final class ShieldDecorationRecipeMaker {
 
 		ItemStack output = createOutput(banner);
 
-		ResourceLocation id = new ResourceLocation(ModIds.MINECRAFT_ID, "jei.shield.decoration." + output.getDescriptionId());
-		return new ShapelessRecipe(id, "jei.shield.decoration", CraftingBookCategory.MISC, output, inputs);
+		ResourceLocation id = ResourceLocation.fromNamespaceAndPath(ModIds.MINECRAFT_ID, "jei.shield.decoration." + output.getDescriptionId());
+		CraftingRecipe recipe = new ShapelessRecipe("jei.shield.decoration", CraftingBookCategory.MISC, output, inputs);
+		return new RecipeHolder<>(id, recipe);
 	}
 
 	private static ItemStack createOutput(BannerItem banner) {

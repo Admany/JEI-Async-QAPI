@@ -1,6 +1,7 @@
 package mezz.jei.library.load.registration;
 
 import com.google.common.base.Preconditions;
+import com.mojang.serialization.Codec;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
@@ -15,12 +16,21 @@ import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.library.ingredients.IngredientInfo;
 import mezz.jei.library.ingredients.IngredientManager;
 import mezz.jei.library.ingredients.RegisteredIngredients;
+import mezz.jei.library.ingredients.TypedIngredient;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
+import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.SequencedMap;
 
 public class IngredientManagerBuilder implements IModIngredientRegistration, IIngredientAliasRegistration, IExtraIngredientRegistration {
-	private final LinkedHashMap<IIngredientType<?>, IngredientInfo<?>> ingredientInfos = new LinkedHashMap<>();
+	private static final Logger LOGGER = LogManager.getLogger();
+
+	private final SequencedMap<IIngredientType<?>, IngredientInfo<?>> ingredientInfos = new LinkedHashMap<>();
 	private final ISubtypeManager subtypeManager;
 	private final IColorHelper colorHelper;
 
@@ -29,8 +39,31 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		this.colorHelper = colorHelper;
 	}
 
+	@SuppressWarnings("removal")
 	@Override
 	public <V> void register(IIngredientType<V> ingredientType, Collection<V> allIngredients, IIngredientHelper<V> ingredientHelper, IIngredientRenderer<V> ingredientRenderer) {
+		registerInternal(ingredientType, allIngredients, ingredientHelper, ingredientRenderer, null);
+	}
+
+	@Override
+	public <V> void register(
+		IIngredientType<V> ingredientType,
+		Collection<V> allIngredients,
+		IIngredientHelper<V> ingredientHelper,
+		IIngredientRenderer<V> ingredientRenderer,
+		Codec<V> ingredientCodec
+	) {
+		ErrorUtil.checkNotNull(ingredientCodec, "ingredientCodec");
+		registerInternal(ingredientType, allIngredients, ingredientHelper, ingredientRenderer, ingredientCodec);
+	}
+
+	private <V> void registerInternal(
+		IIngredientType<V> ingredientType,
+		Collection<V> allIngredients,
+		IIngredientHelper<V> ingredientHelper,
+		IIngredientRenderer<V> ingredientRenderer,
+		@Nullable Codec<V> ingredientCodec
+	) {
 		ErrorUtil.checkNotNull(ingredientType, "ingredientType");
 		ErrorUtil.checkNotNull(allIngredients, "allIngredients");
 		ErrorUtil.checkNotNull(ingredientHelper, "ingredientHelper");
@@ -43,11 +76,28 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 			"the default ingredient renderer registered here will be used for drawing " +
 				"ingredients in the ingredient list, and it must have a height of 16"
 		);
+
 		if (ingredientInfos.containsKey(ingredientType)) {
-			throw new IllegalArgumentException("Ingredient type has already been registered: " + ingredientType.getUid());
+			throw new IllegalArgumentException("Ingredient type has already been registered: " + ingredientType.getIngredientClass());
 		}
 
-		ingredientInfos.put(ingredientType, new IngredientInfo<>(ingredientType, allIngredients, ingredientHelper, ingredientRenderer));
+		List<ITypedIngredient<V>> allTypedIngredients = new ArrayList<>(allIngredients.size());
+		for (V ingredient : allIngredients) {
+			if (!ingredientHelper.isIngredientOnServer(ingredient)) {
+				String errorInfo = ingredientHelper.getErrorInfo(ingredient);
+				LOGGER.warn("Attempted to add an Ingredient that is not on the server: {}", errorInfo);
+				continue;
+			}
+			ITypedIngredient<V> typedIngredient = TypedIngredient.createAndFilterInvalid(ingredientHelper, ingredientType, ingredient, false);
+			if (typedIngredient == null) {
+				LOGGER.warn("Detected an invalid ingredient during ingredient registration: {}", ingredientHelper.getErrorInfo(ingredient));
+				continue;
+			}
+
+			allTypedIngredients.add(typedIngredient);
+		}
+
+		ingredientInfos.put(ingredientType, new IngredientInfo<>(ingredientType, allTypedIngredients, ingredientHelper, ingredientRenderer, ingredientCodec));
 	}
 
 	@Override
@@ -55,13 +105,26 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		ErrorUtil.checkNotNull(ingredientType, "ingredientType");
 		ErrorUtil.checkNotNull(extraIngredients, "extraIngredients");
 
-		IngredientInfo<?> ingredientInfo = ingredientInfos.get(ingredientType);
-		if (ingredientInfo == null) {
-			throw new IllegalArgumentException("Ingredient type has not been registered: " + ingredientType.getUid());
+		IngredientInfo<V> castIngredientInfo = getIngredientInfo(ingredientType);
+		IIngredientHelper<V> ingredientHelper = castIngredientInfo.getIngredientHelper();
+
+		List<ITypedIngredient<V>> extraTypedIngredients = new ArrayList<>(extraIngredients.size());
+		for (V ingredient : extraIngredients) {
+			if (!ingredientHelper.isIngredientOnServer(ingredient)) {
+				String errorInfo = ingredientHelper.getErrorInfo(ingredient);
+				LOGGER.warn("Attempted to add an extra Ingredient that is not on the server: {}", errorInfo);
+				continue;
+			}
+
+			ITypedIngredient<V> typedIngredient = TypedIngredient.createAndFilterInvalid(ingredientHelper, ingredientType, ingredient, false);
+			if (typedIngredient == null) {
+				LOGGER.warn("Detected an invalid ingredient when adding extra ingredients: {}", ingredientHelper.getErrorInfo(ingredient));
+				continue;
+			}
+
+			extraTypedIngredients.add(typedIngredient);
 		}
-		@SuppressWarnings("unchecked")
-		IngredientInfo<V> castIngredientInfo = (IngredientInfo<V>) ingredientInfo;
-		castIngredientInfo.addIngredients(extraIngredients);
+		castIngredientInfo.addIngredients(extraTypedIngredients);
 	}
 
 	@Override
@@ -70,8 +133,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		ErrorUtil.checkNotNull(ingredient, "ingredient");
 		ErrorUtil.checkNotNull(alias, "alias");
 
-		@SuppressWarnings("unchecked")
-		IngredientInfo<I> ingredientInfo = (IngredientInfo<I>) ingredientInfos.get(type);
+		IngredientInfo<I> ingredientInfo = getIngredientInfo(type);
 		ingredientInfo.addIngredientAlias(ingredient, alias);
 	}
 
@@ -80,9 +142,8 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		ErrorUtil.checkNotNull(typedIngredient, "typedIngredient");
 		ErrorUtil.checkNotNull(alias, "alias");
 
-		@SuppressWarnings("unchecked")
-		IngredientInfo<I> ingredientInfo = (IngredientInfo<I>) ingredientInfos.get(typedIngredient.getType());
-		ingredientInfo.addIngredientAlias(typedIngredient.getIngredient(), alias);
+		IngredientInfo<I> ingredientInfo = getIngredientInfo(typedIngredient.getType());
+		ingredientInfo.addIngredientAlias(typedIngredient, alias);
 	}
 
 	@Override
@@ -91,8 +152,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		ErrorUtil.checkNotNull(ingredient, "ingredient");
 		ErrorUtil.checkNotNull(aliases, "aliases");
 
-		@SuppressWarnings("unchecked")
-		IngredientInfo<I> ingredientInfo = (IngredientInfo<I>) ingredientInfos.get(type);
+		IngredientInfo<I> ingredientInfo = getIngredientInfo(type);
 		ingredientInfo.addIngredientAliases(ingredient, aliases);
 	}
 
@@ -101,9 +161,8 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		ErrorUtil.checkNotNull(typedIngredient, "typedIngredient");
 		ErrorUtil.checkNotNull(aliases, "aliases");
 
-		@SuppressWarnings("unchecked")
-		IngredientInfo<I> ingredientInfo = (IngredientInfo<I>) ingredientInfos.get(typedIngredient.getType());
-		ingredientInfo.addIngredientAliases(typedIngredient.getIngredient(), aliases);
+		IngredientInfo<I> ingredientInfo = getIngredientInfo(typedIngredient.getType());
+		ingredientInfo.addIngredientAliases(typedIngredient, aliases);
 	}
 
 	@Override
@@ -112,8 +171,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		ErrorUtil.checkNotNull(ingredients, "ingredients");
 		ErrorUtil.checkNotNull(alias, "alias");
 
-		@SuppressWarnings("unchecked")
-		IngredientInfo<I> ingredientInfo = (IngredientInfo<I>) ingredientInfos.get(type);
+		IngredientInfo<I> ingredientInfo = getIngredientInfo(type);
 		for (I ingredient : ingredients) {
 			ingredientInfo.addIngredientAlias(ingredient, alias);
 		}
@@ -128,10 +186,9 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		for (ITypedIngredient<I> typedIngredient : typedIngredients) {
 			IIngredientType<I> ingredientType = typedIngredient.getType();
 			if (ingredientInfo == null) {
-				//noinspection unchecked
-				ingredientInfo = (IngredientInfo<I>) ingredientInfos.get(ingredientType);
+				ingredientInfo = getIngredientInfo(ingredientType);
 			}
-			ingredientInfo.addIngredientAlias(typedIngredient.getIngredient(), alias);
+			ingredientInfo.addIngredientAlias(typedIngredient, alias);
 		}
 	}
 
@@ -141,8 +198,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		ErrorUtil.checkNotNull(ingredients, "ingredients");
 		ErrorUtil.checkNotNull(aliases, "aliases");
 
-		@SuppressWarnings("unchecked")
-		IngredientInfo<I> ingredientInfo = (IngredientInfo<I>) ingredientInfos.get(type);
+		IngredientInfo<I> ingredientInfo = getIngredientInfo(type);
 		for (I ingredient : ingredients) {
 			ingredientInfo.addIngredientAliases(ingredient, aliases);
 		}
@@ -157,11 +213,20 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		for (ITypedIngredient<I> typedIngredient : typedIngredients) {
 			IIngredientType<I> ingredientType = typedIngredient.getType();
 			if (ingredientInfo == null) {
-				//noinspection unchecked
-				ingredientInfo = (IngredientInfo<I>) ingredientInfos.get(ingredientType);
+				ingredientInfo = getIngredientInfo(ingredientType);
 			}
-			ingredientInfo.addIngredientAliases(typedIngredient.getIngredient(), aliases);
+			ingredientInfo.addIngredientAliases(typedIngredient, aliases);
 		}
+	}
+
+	private <T> IngredientInfo<T> getIngredientInfo(IIngredientType<T> ingredientType) {
+		IngredientInfo<?> ingredientInfo = ingredientInfos.get(ingredientType);
+		if (ingredientInfo == null) {
+			throw new IllegalArgumentException("Ingredient type has not been registered: " + ingredientType.getUid());
+		}
+		@SuppressWarnings("unchecked")
+		IngredientInfo<T> cast = (IngredientInfo<T>) ingredientInfo;
+		return cast;
 	}
 
 	@Override

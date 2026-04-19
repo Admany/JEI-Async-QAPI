@@ -1,43 +1,45 @@
 package mezz.jei.library.ingredients.itemStacks;
 
 import net.minecraft.core.Holder;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import org.jetbrains.annotations.Nullable;
 
 final class FullTypedItemStack extends TypedItemStack {
 	private final Holder<Item> itemHolder;
-	private final @Nullable CompoundTag tag;
+	private final DataComponentPatch dataComponentPatch;
 	private final int count;
 
 	public FullTypedItemStack(
 		Holder<Item> itemHolder,
-		@Nullable CompoundTag tag,
+		DataComponentPatch dataComponentPatch,
 		int count
 	) {
 		this.itemHolder = itemHolder;
-		this.tag = tag;
+		this.dataComponentPatch = dataComponentPatch;
 		this.count = count;
 	}
 
 	@Override
 	protected ItemStack createItemStackUncached() {
-		ItemStack itemStack = new ItemStack(itemHolder, count);
-		itemStack.setTag(tag);
-		return itemStack;
+		return new ItemStack(itemHolder, count, dataComponentPatch);
 	}
 
 	@Override
 	protected TypedItemStack getNormalized() {
-		return NormalizedTypedItemStack.create(itemHolder, tag);
+		return NormalizedTypedItemStack.create(itemHolder, dataComponentPatch);
+	}
+
+	@Override
+	protected Item getItem() {
+		return itemHolder.value();
 	}
 
 	@Override
 	public String toString() {
 		return "TypedItemStack{" +
 			"itemHolder=" + itemHolder +
-			", tag=" + tag +
+			", dataComponentPatch=" + dataComponentPatch +
 			", count=" + count +
 			'}';
 	}

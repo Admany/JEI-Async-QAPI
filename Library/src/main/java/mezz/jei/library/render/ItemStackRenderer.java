@@ -1,7 +1,6 @@
 package mezz.jei.library.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.rendering.BatchRenderElement;
 import mezz.jei.common.platform.IPlatformRenderHelper;
@@ -12,6 +11,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import org.jetbrains.annotations.Nullable;
@@ -44,20 +44,12 @@ public class ItemStackRenderer implements IIngredientRenderer<ItemStack> {
 		batchRenderer.renderBatch(guiGraphics, this, batchRenderElements);
 	}
 
-	@SuppressWarnings("removal")
 	@Override
 	public List<Component> getTooltip(ItemStack ingredient, TooltipFlag tooltipFlag) {
 		Minecraft minecraft = Minecraft.getInstance();
 		Player player = minecraft.player;
-		return ingredient.getTooltipLines(player, tooltipFlag);
-	}
-
-	@Override
-	public void getTooltip(ITooltipBuilder tooltip, ItemStack ingredient, TooltipFlag tooltipFlag) {
-		Minecraft minecraft = Minecraft.getInstance();
-		Player player = minecraft.player;
-		List<Component> components = ingredient.getTooltipLines(player, tooltipFlag);
-		tooltip.addAll(components);
+		Item.TooltipContext tooltipContext = Item.TooltipContext.of(minecraft.level);
+		return ingredient.getTooltipLines(tooltipContext, player, tooltipFlag);
 	}
 
 	@Override

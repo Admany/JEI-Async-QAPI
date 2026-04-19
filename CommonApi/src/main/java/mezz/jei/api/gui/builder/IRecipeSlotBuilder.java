@@ -9,6 +9,8 @@ import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.registration.IModIngredientRegistration;
+import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.world.level.material.Fluid;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
@@ -30,7 +32,7 @@ public interface IRecipeSlotBuilder extends IIngredientAcceptor<IRecipeSlotBuild
 	 * @deprecated use {@link #addRichTooltipCallback(IRecipeSlotRichTooltipCallback)}
 	 */
 	@SuppressWarnings("removal")
-	@Deprecated(since = "15.12.3", forRemoval = true)
+	@Deprecated(since = "19.8.5", forRemoval = true)
 	IRecipeSlotBuilder addTooltipCallback(mezz.jei.api.gui.ingredient.IRecipeSlotTooltipCallback tooltipCallback);
 
 	/**
@@ -38,7 +40,7 @@ public interface IRecipeSlotBuilder extends IIngredientAcceptor<IRecipeSlotBuild
 	 *
 	 * @see IRecipeSlotRichTooltipCallback
 	 *
-	 * @since 15.12.3
+	 * @since 19.8.5
 	 */
 	IRecipeSlotBuilder addRichTooltipCallback(IRecipeSlotRichTooltipCallback tooltipCallback);
 
@@ -57,7 +59,7 @@ public interface IRecipeSlotBuilder extends IIngredientAcceptor<IRecipeSlotBuild
 	 *
 	 * @see IGuiHelper#getSlotDrawable() for the slot background drawable.
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.7
 	 */
 	IRecipeSlotBuilder setStandardSlotBackground();
 
@@ -67,7 +69,7 @@ public interface IRecipeSlotBuilder extends IIngredientAcceptor<IRecipeSlotBuild
 	 *
 	 * @see IGuiHelper#getOutputSlot() for the slot background drawable.
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.8
 	 */
 	IRecipeSlotBuilder setOutputSlotBackground();
 
@@ -128,4 +130,44 @@ public interface IRecipeSlotBuilder extends IIngredientAcceptor<IRecipeSlotBuild
 		IIngredientType<T> ingredientType,
 		IIngredientRenderer<T> ingredientRenderer
 	);
+
+	/**
+	 * Convenience helper to add one Fluid ingredient.
+	 *
+	 * To add multiple Fluid ingredients, you can call this multiple times.
+	 *
+	 * By default, fluids amounts below 1000 (i.e. one bucket) are rendered using a partial sprite,
+	 * and fluid amounts above 1000 are rendered using a full sprite.
+	 *
+	 * The default renderer can be tweaked using {@link #setFluidRenderer}.
+	 * For example, {@code .setFluidRenderer(1, false, 16, 16)} to always draw a full 16x16 sprite
+	 * even if there is only a little fluid.
+	 *
+	 * To completely customize rendering, see {@link #setCustomRenderer(IIngredientType, IIngredientRenderer)}
+	 *
+	 * @see #addFluidStack(Fluid, long, DataComponentPatch) to add a Fluid with a {@link DataComponentPatch}.
+	 * @since 11.1.0
+	 */
+	@Override
+	IRecipeSlotBuilder addFluidStack(Fluid fluid, long amount);
+
+	/**
+	 * Convenience helper to add one Fluid ingredient with a {@link DataComponentPatch}.
+	 *
+	 * To add multiple Fluid ingredients, you can call this multiple times.
+	 *
+	 * By default, fluids amounts below 1000 (i.e. one bucket) are rendered using a partial sprite,
+	 * and fluid amounts above 1000 are rendered using a full sprite.
+	 *
+	 * The default renderer can be tweaked using {@link #setFluidRenderer}.
+	 * For example, {@code .setFluidRenderer(1, false, 16, 16)} to always draw a full 16x16 sprite
+	 * even if there is only a little fluid.
+	 *
+	 * To completely customize rendering, see {@link #setCustomRenderer(IIngredientType, IIngredientRenderer)}
+	 *
+	 * @see #addFluidStack(Fluid, long) to add a Fluid without a {@link DataComponentPatch}.
+	 * @since 18.0.0
+	 */
+	@Override
+	IRecipeSlotBuilder addFluidStack(Fluid fluid, long amount, DataComponentPatch component);
 }

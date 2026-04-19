@@ -86,7 +86,7 @@ public interface IRecipeLayoutDrawable<R> {
 	 *
 	 * @return the slot under the mouse, with an offset
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	Optional<RecipeSlotUnderMouse> getSlotUnderMouse(double mouseX, double mouseY);
 
@@ -98,7 +98,7 @@ public interface IRecipeLayoutDrawable<R> {
 
 	/**
 	 * Get position and size for the recipe, including the border drawn around it, in absolute screen coordinates.
-	 * @since 15.5.1
+	 * @since 19.1.1
 	 */
 	Rect2i getRectWithBorder();
 
@@ -106,13 +106,24 @@ public interface IRecipeLayoutDrawable<R> {
 	 * Get the position of the recipe transfer button area, relative to the recipe layout drawable.
 	 * @since 11.5.0
 	 */
-	Rect2i getRecipeTransferButtonArea();
+	default Rect2i getRecipeTransferButtonArea() {
+		return getSideButtonArea(0);
+	}
 
 	/**
 	 * Get the position of the recipe bookmark button area, relative to the recipe layout drawable.
-	 * @since 15.5.0
+	 * @since 19.1.0
 	 */
-	Rect2i getRecipeBookmarkButtonArea();
+	default Rect2i getRecipeBookmarkButtonArea() {
+		return getSideButtonArea(1);
+	}
+
+	/**
+	 * Get the position of an extra button area, relative to the recipe layout drawable.
+	 * These buttons are used for recipe transfer, bookmarking recipes, etc.
+	 * @since 19.26.0
+	 */
+	Rect2i getSideButtonArea(int buttonIndex);
 
 	/**
 	 * Get a view of the recipe slots for this recipe layout.
@@ -135,14 +146,14 @@ public interface IRecipeLayoutDrawable<R> {
 	/**
 	 * Get the input handler for this recipe layout.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	IJeiInputHandler getInputHandler();
 
 	/**
 	 * Update the recipe layout on game tick.
 	 *
-	 * @since 15.10.0
+	 * @since 19.7.0
 	 */
 	void tick();
 }

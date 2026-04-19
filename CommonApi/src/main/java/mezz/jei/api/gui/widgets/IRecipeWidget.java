@@ -17,12 +17,12 @@ import net.minecraft.client.gui.navigation.ScreenPosition;
  *
  * Create your widgets in {@link IRecipeCategory#createRecipeExtras}.
  *
- * @since 15.10.0
+ * @since 19.7.0
  */
 public interface IRecipeWidget {
 	/**
 	 * Get the position of this widget, relative to its parent element.
-	 * @since 15.10.0
+	 * @since 19.7.0
 	 */
 	ScreenPosition getPosition();
 
@@ -39,7 +39,7 @@ public interface IRecipeWidget {
 	 * @see IRecipeSlotsView for information about the ingredients that are currently being drawn.
 	 * @see IRecipeCategory#draw for a similar method that doesn't require a widget.
 	 *
-	 * @since 15.20.0
+	 * @since 19.19.0
 	 */
 	default void drawWidget(GuiGraphics guiGraphics, double mouseX, double mouseY) {
 		ScreenPosition position = getPosition();
@@ -59,10 +59,10 @@ public interface IRecipeWidget {
 	 * @see IRecipeSlotsView for information about the ingredients that are currently being drawn.
 	 * @see IRecipeCategory#draw for a similar method that doesn't require a widget.
 	 *
-	 * @since 15.10.0
+	 * @since 19.7.0
 	 * @deprecated use {@link #drawWidget} which uses mouse coordinates relative to the widget's position instead of the parent's position.
 	 */
-	@Deprecated(since = "15.20.0", forRemoval = true)
+	@Deprecated(since = "19.19.0", forRemoval = true)
 	default void draw(GuiGraphics guiGraphics, double mouseX, double mouseY) {
 
 	}
@@ -76,7 +76,7 @@ public interface IRecipeWidget {
 	 * @param mouseX          the X position of the mouse, relative to its position.
 	 * @param mouseY          the Y position of the mouse, relative to its position.
 	 *
-	 * @since 15.20.0
+	 * @since 19.19.0
 	 */
 	default void getTooltip(ITooltipBuilder tooltip, double mouseX, double mouseY) {
 
@@ -85,7 +85,7 @@ public interface IRecipeWidget {
 	/**
 	 * Called once per game tick, useful for updating the widget's state in the background.
 	 *
-	 * @since 15.10.0
+	 * @since 19.7.0
 	 */
 	default void tick() {
 

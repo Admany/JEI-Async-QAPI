@@ -12,7 +12,7 @@ import mezz.jei.common.config.file.IConfigListener;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.gui.GuiProperties;
-import mezz.jei.gui.elements.GuiIconToggleButton;
+import mezz.jei.gui.elements.IconButton;
 import mezz.jei.gui.filter.IFilterTextSource;
 import mezz.jei.gui.input.GuiTextFieldFilter;
 import mezz.jei.gui.input.ICharTypedHandler;
@@ -31,6 +31,8 @@ import mezz.jei.gui.input.handlers.ProxyInputHandler;
 import mezz.jei.gui.overlay.bookmarks.history.LookupHistoryOverlay;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
@@ -40,12 +42,14 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFocusSource, ICharTypedHandler {
+	private static final Logger LOGGER = LogManager.getLogger();
+
 	private static final int BORDER_MARGIN = 6;
 	private static final int INNER_PADDING = 2;
 	private static final int BUTTON_SIZE = 20;
 	private static final int SEARCH_HEIGHT = BUTTON_SIZE;
 
-	private final GuiIconToggleButton configButton;
+	private final IconButton configButton;
 	private final IngredientGridWithNavigation contents;
 	private final LookupHistoryOverlay lookupHistoryOverlay;
 	private final IClientConfig clientConfig;
@@ -54,7 +58,6 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 	private final IInternalKeyMappings keyBindings;
 	private final ScreenPropertiesCache screenPropertiesCache;
 	private final IFilterTextSource filterTextSource;
-
 
 	// these need to be stored as strong references here because listeners are weakly stored elsewhere
 	@SuppressWarnings("FieldCanBeLocal")
@@ -93,7 +96,7 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 				.update();
 		});
 
-		this.configButton = ConfigButton.create(this::isListDisplayed, toggleState, keyBindings);
+		this.configButton = new IconButton(new ConfigButtonController(this::isListDisplayed, toggleState, keyBindings));
 
 		this.lookupHistoryEnabledListener = v -> onScreenPropertiesChanged();
 		this.lookupHistoryViewSideListener = v -> onScreenPropertiesChanged();
@@ -123,12 +126,18 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 	private void onScreenPropertiesChanged() {
 		screenPropertiesCache.getGuiProperties()
 			.ifPresentOrElse(guiProperties -> {
-				ImmutableRect2i displayArea = createDisplayArea(guiProperties);
-				Set<ImmutableRect2i> guiExclusionAreas = screenPropertiesCache.getGuiExclusionAreas();
-				updateBounds(guiProperties, displayArea, guiExclusionAreas);
+				try {
+					ImmutableRect2i displayArea = createDisplayArea(guiProperties);
+					Set<ImmutableRect2i> guiExclusionAreas = screenPropertiesCache.getGuiExclusionAreas();
+					updateBounds(guiProperties, displayArea, guiExclusionAreas);
+				} catch (RuntimeException e) {
+					LOGGER.error("Failed to update JEI bounds for screen with properties : {}", guiProperties, e);
+					this.contents.close();
+					this.lookupHistoryOverlay.close();
+					this.searchField.setFocused(false);
+				}
 			}, () -> {
 				this.contents.close();
-				this.lookupHistoryOverlay.close();
 				this.searchField.setFocused(false);
 			});
 	}
@@ -141,9 +150,9 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 			int historyRows = clientConfig.getMaxLookupHistoryRows();
 			availableContentsArea  = availableContentsArea.cropBottom(historyRows * LookupHistoryOverlay.SLOT_HEIGHT);
 			ImmutableRect2i historyArea = displayArea
-				.insetBy(BORDER_MARGIN)
-				.moveUp(BUTTON_SIZE + INNER_PADDING)
-				.keepBottom(historyRows * LookupHistoryOverlay.SLOT_HEIGHT);
+					.insetBy(BORDER_MARGIN)
+					.moveUp(BUTTON_SIZE + INNER_PADDING)
+					.keepBottom(historyRows * LookupHistoryOverlay.SLOT_HEIGHT);
 			this.lookupHistoryOverlay.updateBounds(historyArea, guiExclusionAreas, null);
 			this.lookupHistoryOverlay.updateLayout();
 		}
@@ -164,7 +173,7 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 
 	private static boolean isSearchBarCentered(IClientConfig clientConfig, IGuiProperties guiProperties) {
 		return clientConfig.isCenterSearchBarEnabled() &&
-			GuiProperties.getGuiBottom(guiProperties) + SEARCH_HEIGHT < guiProperties.getScreenHeight();
+			GuiProperties.getGuiBottom(guiProperties) + SEARCH_HEIGHT < guiProperties.screenHeight();
 	}
 
 	private ImmutableRect2i getAvailableContentsArea(ImmutableRect2i displayArea, boolean searchBarCentered) {
@@ -224,12 +233,6 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 		this.lookupHistoryOverlay.drawOnForeground(guiGraphics, mouseX, mouseY);
 	}
 
-	public void handleTick() {
-		if (this.isListDisplayed()) {
-			this.searchField.tick();
-		}
-	}
-
 	@Override
 	public Stream<IClickableIngredientInternal<?>> getIngredientUnderMouse(double mouseX, double mouseY) {
 		if (isListDisplayed()) {
@@ -244,7 +247,7 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 	@Override
 	public Stream<IDraggableIngredientInternal<?>> getDraggableIngredientUnderMouse(double mouseX, double mouseY) {
 		if (isListDisplayed()) {
-			return Stream.concat(this.contents.getDraggableIngredientUnderMouse(mouseX, mouseY), this.lookupHistoryOverlay.getDraggableIngredientUnderMouse(mouseX, mouseY));
+			return Stream.concat(this.contents.getDraggableIngredientUnderMouse(mouseX, mouseY),this.lookupHistoryOverlay.getDraggableIngredientUnderMouse(mouseX, mouseY));
 		}
 		if (this.lookupHistoryOverlay.isListDisplayed()) {
 			return this.lookupHistoryOverlay.getDraggableIngredientUnderMouse(mouseX, mouseY);
@@ -274,15 +277,14 @@ public class IngredientListOverlay implements IIngredientListOverlay, IRecipeFoc
 	}
 
 	public IDragHandler createDragHandler() {
-
-		final IDragHandler combinedDragHandler = new CombinedDragHandler(
+		final IDragHandler combinedDragHandlers = new CombinedDragHandler(
 			this.contents.createDragHandler(),
 			this.lookupHistoryOverlay.createDragHandler()
 		);
 
 		return new ProxyDragHandler(() -> {
 			if (isListDisplayed()) {
-				return combinedDragHandler;
+				return combinedDragHandlers;
 			}
 			return NullDragHandler.INSTANCE;
 		});

@@ -16,7 +16,7 @@ import java.util.Collection;
  *
  * This is given to your {@link IModPlugin#registerExtraIngredients(IExtraIngredientRegistration)}.
  *
- * @since 15.19.0
+ * @since 19.18.0
  */
 public interface IExtraIngredientRegistration {
 	/**
@@ -24,7 +24,7 @@ public interface IExtraIngredientRegistration {
 	 *
 	 * @param extraItemStacks A collection of extra ItemStacks to be displayed in the ingredient list.
 	 *
-	 * @since 15.19.0
+	 * @since 19.18.0
 	 */
 	default void addExtraItemStacks(Collection<ItemStack> extraItemStacks) {
 		addExtraIngredients(VanillaTypes.ITEM_STACK, extraItemStacks);
@@ -37,7 +37,7 @@ public interface IExtraIngredientRegistration {
 	 *                           This must already be registered with {@link IModIngredientRegistration#register} by another mod.
 	 * @param extraIngredients   A collection of extra ingredients to be displayed in the ingredient list.
 	 *
-	 * @since 15.19.0
+	 * @since 19.18.0
 	 */
 	<V> void addExtraIngredients(
 		IIngredientType<V> ingredientType,

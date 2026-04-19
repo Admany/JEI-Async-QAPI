@@ -1,6 +1,6 @@
 package mezz.jei.library.helpers;
 
-
+import com.google.common.collect.ImmutableSetMultimap;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.helpers.IModIdHelper;
 import mezz.jei.api.ingredients.IIngredientHelper;
@@ -19,15 +19,17 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
+import java.util.Set;
 
 public final class ModIdHelper implements IModIdHelper {
 	private final IModIdFormatConfig modIdFormattingConfig;
 	private final IIngredientManager ingredientManager;
+	private final ImmutableSetMultimap<String, String> modAliases;
 
-	public ModIdHelper(IModIdFormatConfig modIdFormattingConfig, IIngredientManager ingredientManager) {
+	public ModIdHelper(IModIdFormatConfig modIdFormattingConfig, IIngredientManager ingredientManager, ImmutableSetMultimap<String, String> modAliases) {
 		this.modIdFormattingConfig = modIdFormattingConfig;
 		this.ingredientManager = ingredientManager;
+		this.modAliases = modAliases;
 	}
 
 	@Override
@@ -82,15 +84,10 @@ public final class ModIdHelper implements IModIdHelper {
 		return addModNameToIngredientTooltip(tooltip, ingredient, ingredientHelper);
 	}
 
-	private static String removeChatFormatting(String string) {
-		String withoutFormattingCodes = ChatFormatting.stripFormatting(string);
-		return (withoutFormattingCodes == null) ? "" : withoutFormattingCodes;
-	}
-
 	@Override
 	public String getFormattedModNameForModId(String modId) {
 		String modName = getModNameForModId(modId);
-		modName = removeChatFormatting(modName); // some crazy mod has formatting in the name
+		modName = ChatFormatting.stripFormatting(modName); // some crazy mod has formatting in the name
 		String modNameFormat = modIdFormattingConfig.getModNameFormat();
 		if (!modNameFormat.isEmpty()) {
 			if (modNameFormat.contains(ModIdFormatConfig.MOD_NAME_FORMAT_CODE)) {
@@ -99,6 +96,11 @@ public final class ModIdHelper implements IModIdHelper {
 			return modNameFormat + modName;
 		}
 		return modName;
+	}
+
+	@Override
+	public Set<String> getModAliases(String modId) {
+		return modAliases.get(modId);
 	}
 
 	@Override

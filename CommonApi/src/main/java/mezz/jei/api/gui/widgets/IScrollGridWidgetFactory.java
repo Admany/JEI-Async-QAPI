@@ -8,18 +8,18 @@ import net.minecraft.client.gui.navigation.ScreenRectangle;
  *
  * Get an instance from {@link IGuiHelper#createScrollGridFactory(int, int)}
  *
- * @since 15.10.0
+ * @since 19.7.0
  * @deprecated use {@link IRecipeExtrasBuilder#addScrollGridWidget} instead, it's much simpler
  */
 @SuppressWarnings({"DeprecatedIsStillUsed", "removal"})
-@Deprecated(since = "15.20.0", forRemoval = true)
+@Deprecated(since = "19.19.3", forRemoval = true)
 public interface IScrollGridWidgetFactory<R> extends ISlottedWidgetFactory<R> {
 	/**
-	 * @since 15.10.0
+	 * @since 19.7.0
 	 */
 	void setPosition(int x, int y);
 	/**
-	 * @since 15.10.0
+	 * @since 19.7.0
 	 */
 	ScreenRectangle getArea();
 }

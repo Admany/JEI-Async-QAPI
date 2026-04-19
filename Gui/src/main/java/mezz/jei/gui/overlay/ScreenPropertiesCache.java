@@ -91,16 +91,16 @@ public class ScreenPropertiesCache {
 				return false;
 			}
 			List<String> errors = new ArrayList<>();
-			validate(errors, "guiXSize", 1, MAX_GUI_DIMENSION, guiProperties.getGuiXSize());
-			validate(errors, "guiYSize", 1, MAX_GUI_DIMENSION, guiProperties.getGuiYSize());
-			validate(errors, "screenWidth", 1, MAX_GUI_DIMENSION, guiProperties.getScreenWidth());
-			validate(errors, "screenHeight", 1, MAX_GUI_DIMENSION, guiProperties.getScreenHeight());
-			validate(errors,"guiLeft", MIN_GUI_DIMENSION, MAX_GUI_DIMENSION, guiProperties.getGuiLeft());
-			validate(errors,"guiTop", MIN_GUI_DIMENSION, MAX_GUI_DIMENSION, guiProperties.getGuiTop());
+			validate(errors, "guiXSize", 1, MAX_GUI_DIMENSION, guiProperties.guiXSize());
+			validate(errors, "guiYSize", 1, MAX_GUI_DIMENSION, guiProperties.guiYSize());
+			validate(errors, "screenWidth", 1, MAX_GUI_DIMENSION, guiProperties.screenWidth());
+			validate(errors, "screenHeight", 1, MAX_GUI_DIMENSION, guiProperties.screenHeight());
+			validate(errors,"guiLeft", MIN_GUI_DIMENSION, MAX_GUI_DIMENSION, guiProperties.guiLeft());
+			validate(errors,"guiTop", MIN_GUI_DIMENSION, MAX_GUI_DIMENSION, guiProperties.guiTop());
 			if (!errors.isEmpty()) {
 				LOGGER.error(
 					"Received invalid gui properties for screen: {}\n{}",
-					guiProperties.getScreenClass(),
+					guiProperties.screenClass(),
 					String.join("\n", errors)
 				);
 				return false;

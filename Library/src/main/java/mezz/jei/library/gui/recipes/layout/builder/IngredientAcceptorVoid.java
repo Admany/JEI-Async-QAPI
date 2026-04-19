@@ -3,7 +3,7 @@ package mezz.jei.library.gui.recipes.layout.builder;
 import mezz.jei.api.gui.builder.IIngredientAcceptor;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.world.level.material.Fluid;
 import org.jetbrains.annotations.Nullable;
 
@@ -51,7 +51,7 @@ public class IngredientAcceptorVoid implements IIngredientAcceptor<IngredientAcc
 	}
 
 	@Override
-	public IngredientAcceptorVoid addFluidStack(Fluid fluid, long amount, CompoundTag tag) {
+	public IngredientAcceptorVoid addFluidStack(Fluid fluid, long amount, DataComponentPatch componentPatch) {
 		return this;
 	}
 }

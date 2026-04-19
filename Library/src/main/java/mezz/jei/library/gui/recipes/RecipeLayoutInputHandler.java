@@ -133,7 +133,7 @@ public class RecipeLayoutInputHandler<T> implements IJeiInputHandler {
 	}
 
 	@Override
-	public boolean handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+	public boolean handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
 		if (!recipeLayout.isMouseOver(mouseX, mouseY)) {
 			return false;
 		}
@@ -148,7 +148,7 @@ public class RecipeLayoutInputHandler<T> implements IJeiInputHandler {
 				ScreenPosition position = widgetArea.position();
 				double relativeMouseX = recipeMouseX - position.x();
 				double relativeMouseY = recipeMouseY - position.y();
-				if (inputHandler.handleMouseScrolled(relativeMouseX, relativeMouseY, scrollDelta)) {
+				if (inputHandler.handleMouseScrolled(relativeMouseX, relativeMouseY, scrollDeltaX, scrollDeltaY)) {
 					return true;
 				}
 			}
@@ -159,7 +159,7 @@ public class RecipeLayoutInputHandler<T> implements IJeiInputHandler {
 				ScreenPosition position = widgetArea.position();
 				double relativeMouseX = recipeMouseX - position.x();
 				double relativeMouseY = recipeMouseY - position.y();
-				if (guiEventListener.mouseScrolled(relativeMouseX, relativeMouseY, scrollDelta)) {
+				if (guiEventListener.mouseScrolled(relativeMouseX, relativeMouseY, scrollDeltaX, scrollDeltaY)) {
 					return true;
 				}
 			}

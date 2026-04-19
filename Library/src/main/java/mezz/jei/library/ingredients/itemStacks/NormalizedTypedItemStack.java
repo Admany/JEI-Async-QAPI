@@ -1,35 +1,32 @@
 package mezz.jei.library.ingredients.itemStacks;
 
 import net.minecraft.core.Holder;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import org.jetbrains.annotations.Nullable;
 
 final class NormalizedTypedItemStack extends TypedItemStack {
 	private final Holder<Item> itemHolder;
-	private final CompoundTag tag;
+	private final DataComponentPatch dataComponentPatch;
 
 	public NormalizedTypedItemStack(
 		Holder<Item> itemHolder,
-		CompoundTag tag
+		DataComponentPatch dataComponentPatch
 	) {
 		this.itemHolder = itemHolder;
-		this.tag = tag;
+		this.dataComponentPatch = dataComponentPatch;
 	}
 
-	static TypedItemStack create(Holder<Item> itemHolder, @Nullable CompoundTag tag) {
-		if (tag == null) {
+	static TypedItemStack create(Holder<Item> itemHolder, DataComponentPatch dataComponentPatch) {
+		if (dataComponentPatch.isEmpty()) {
 			return new NormalizedTypedItem(itemHolder);
 		}
-		return new NormalizedTypedItemStack(itemHolder, tag);
+		return new NormalizedTypedItemStack(itemHolder, dataComponentPatch);
 	}
 
 	@Override
-	public ItemStack createItemStackUncached() {
-		ItemStack itemStack = new ItemStack(itemHolder, 1);
-		itemStack.setTag(tag);
-		return itemStack;
+	protected ItemStack createItemStackUncached() {
+		return new ItemStack(itemHolder, 1, dataComponentPatch);
 	}
 
 	@Override
@@ -38,10 +35,15 @@ final class NormalizedTypedItemStack extends TypedItemStack {
 	}
 
 	@Override
+	protected Item getItem() {
+		return itemHolder.value();
+	}
+
+	@Override
 	public String toString() {
 		return "NormalizedTypedItemStack{" +
 			"itemHolder=" + itemHolder +
-			", tag=" + tag +
+			", dataComponentPatch=" + dataComponentPatch +
 			'}';
 	}
 }

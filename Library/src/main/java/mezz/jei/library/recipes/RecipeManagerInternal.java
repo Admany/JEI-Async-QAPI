@@ -1,7 +1,7 @@
 package mezz.jei.library.recipes;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
+import mezz.jei.api.ingredients.IIngredientSupplier;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IFocusGroup;
@@ -9,17 +9,15 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.advanced.IRecipeManagerPlugin;
 import mezz.jei.api.recipe.category.IRecipeCategory;
-import mezz.jei.api.recipe.category.extensions.IRecipeCategoryDecorator;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IIngredientVisibility;
 import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.library.config.RecipeCategorySortingConfig;
-import mezz.jei.library.ingredients.IIngredientSupplier;
 import mezz.jei.library.recipes.collect.RecipeMap;
 import mezz.jei.library.recipes.collect.RecipeTypeData;
 import mezz.jei.library.recipes.collect.RecipeTypeDataMap;
 import mezz.jei.library.util.IngredientSupplierHelper;
-import mezz.jei.library.util.RecipeErrorUtil;
+import mezz.jei.library.util.RecipeDebugUtil;
 import net.minecraft.resources.ResourceLocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,6 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
 public class RecipeManagerInternal {
@@ -46,13 +45,15 @@ public class RecipeManagerInternal {
 	private final Comparator<IRecipeCategory<?>> recipeCategoryComparator;
 	private final EnumMap<RecipeIngredientRole, RecipeMap> recipeMaps;
 	private final PluginManager pluginManager;
-	private final Set<RecipeType<?>> hiddenRecipeTypes = java.util.Collections.synchronizedSet(new HashSet<>());
+	private final Set<RecipeType<?>> hiddenRecipeTypes = new HashSet<>();
 	private final IIngredientVisibility ingredientVisibility;
-	private ImmutableListMultimap<RecipeType<?>, IRecipeCategoryDecorator<?>> recipeCategoryDecorators;
+	private List<PendingRecipeEntry<?>> pendingRecipes = new ArrayList<>();
+	private volatile boolean deferIndexing = true;
+	private volatile CompletableFuture<Void> indexBuildFuture = CompletableFuture.completedFuture(null);
 
 	@Nullable
 	@Unmodifiable
-	private volatile List<IRecipeCategory<?>> recipeCategoriesVisibleCache = null;
+	private List<IRecipeCategory<?>> recipeCategoriesVisibleCache = null;
 
 	public RecipeManagerInternal(
 		List<IRecipeCategory<?>> recipeCategories,
@@ -63,7 +64,6 @@ public class RecipeManagerInternal {
 	) {
 		ErrorUtil.checkNotEmpty(recipeCategories, "recipeCategories");
 
-		this.recipeCategoryDecorators = ImmutableListMultimap.of();
 		this.ingredientManager = ingredientManager;
 		this.ingredientVisibility = ingredientVisibility;
 
@@ -97,7 +97,8 @@ public class RecipeManagerInternal {
 		IRecipeManagerPlugin internalRecipeManagerPlugin = new InternalRecipeManagerPlugin(
 			ingredientManager,
 			recipeTypeDataMap,
-			recipeMaps
+			recipeMaps,
+			this::isIndexReady
 		);
 		this.pluginManager = new PluginManager(internalRecipeManagerPlugin);
 	}
@@ -106,61 +107,106 @@ public class RecipeManagerInternal {
 		this.pluginManager.addAll(plugins);
 	}
 
-	public void addDecorators(ImmutableListMultimap<RecipeType<?>, IRecipeCategoryDecorator<?>> decorators) {
-		this.recipeCategoryDecorators = decorators;
-	}
-
 	public <T> void addRecipes(RecipeType<T> recipeType, List<T> recipes) {
 		LOGGER.debug("Adding recipes: {}", recipeType);
 		RecipeTypeData<T> recipeTypeData = recipeTypeDataMap.get(recipeType);
 		IRecipeCategory<T> recipeCategory = recipeTypeData.getRecipeCategory();
 		Set<T> hiddenRecipes = recipeTypeData.getHiddenRecipes();
 
-		List<T> addedRecipes = new ArrayList<>(recipes.size());
+		List<T> validRecipes = new ArrayList<>(recipes.size());
 		for (T recipe : recipes) {
-			if (addRecipe(recipeCategory, recipe, hiddenRecipes)) {
-				addedRecipes.add(recipe);
+			if (hiddenRecipes.contains(recipe)) {
+				if (LOGGER.isDebugEnabled()) {
+					String recipeInfo = RecipeDebugUtil.getDebugInfoFromRecipe(recipe, recipeCategory, ingredientManager);
+					LOGGER.debug("Recipe not added because it is hidden: {}", recipeInfo);
+				}
+				continue;
 			}
+			if (!recipeCategory.isHandled(recipe)) {
+				if (LOGGER.isDebugEnabled()) {
+					String recipeInfo = RecipeDebugUtil.getDebugInfoFromRecipe(recipe, recipeCategory, ingredientManager);
+					LOGGER.debug("Recipe not added because the recipe category cannot handle it: {}", recipeInfo);
+				}
+				continue;
+			}
+			validRecipes.add(recipe);
 		}
 
-		if (!addedRecipes.isEmpty()) {
-			recipeTypeData.addRecipes(addedRecipes);
+		if (!validRecipes.isEmpty()) {
+			recipeTypeData.addRecipes(validRecipes);
+			if (deferIndexing) {
+				pendingRecipes.add(new PendingRecipeEntry<>(recipeCategory, recipeType, validRecipes));
+			} else {
+				// After index building started, index recipes immediately
+				indexRecipeEntry(new PendingRecipeEntry<>(recipeCategory, recipeType, validRecipes));
+			}
 			recipeCategoriesVisibleCache = null;
 		}
 	}
 
-	private <T> boolean addRecipe(IRecipeCategory<T> recipeCategory, T recipe, Set<T> hiddenRecipes) {
-		RecipeType<T> recipeType = recipeCategory.getRecipeType();
-		if (hiddenRecipes.contains(recipe)) {
-			if (LOGGER.isDebugEnabled()) {
-				String recipeInfo = RecipeErrorUtil.getInfoFromRecipe(recipe, recipeCategory, ingredientManager);
-				LOGGER.debug("Recipe not added because it is hidden: {}", recipeInfo);
-			}
-			return false;
-		}
-		if (!recipeCategory.isHandled(recipe)) {
-			if (LOGGER.isDebugEnabled()) {
-				String recipeInfo = RecipeErrorUtil.getInfoFromRecipe(recipe, recipeCategory, ingredientManager);
-				LOGGER.debug("Recipe not added because the recipe category cannot handle it: {}", recipeInfo);
-			}
-			return false;
-		}
-		IIngredientSupplier ingredientSupplier = IngredientSupplierHelper.getIngredientSupplier(recipe, recipeCategory, ingredientManager);
-		if (ingredientSupplier == null) {
-			return false;
-		}
+	/**
+	 * Start building recipe index in background.
+	 * The index maps ingredients to recipes for focus-based lookups.
+	 * This runs in parallel with GUI building for faster startup.
+	 */
+	public void buildRecipeIndexAsync() {
+		this.indexBuildFuture = CompletableFuture.runAsync(this::buildRecipeIndex)
+			.whenComplete((result, error) -> {
+				if (error != null) {
+					LOGGER.error("Recipe index building failed!", error);
+				}
+			});
+	}
 
-		try {
-			for (RecipeMap recipeMap : recipeMaps.values()) {
-				recipeMap.addRecipe(recipeType, recipe, ingredientSupplier);
+	private void buildRecipeIndex() {
+		// Take a snapshot and stop deferring so any new addRecipes() calls index immediately
+		List<PendingRecipeEntry<?>> snapshot = pendingRecipes;
+		pendingRecipes = new ArrayList<>();
+		deferIndexing = false;
+
+		LOGGER.info("Building recipe index ({} batches)...", snapshot.size());
+		com.google.common.base.Stopwatch stopwatch = com.google.common.base.Stopwatch.createStarted();
+
+		int totalRecipes = 0;
+		for (PendingRecipeEntry<?> entry : snapshot) {
+			totalRecipes += entry.recipes.size();
+			indexRecipeEntry(entry);
+		}
+		recipeMaps.values().forEach(RecipeMap::compact);
+
+		LOGGER.info("Building recipe index took {} ({} recipes indexed)",
+			mezz.jei.core.util.TimeUtil.toHumanString(stopwatch.elapsed()), totalRecipes);
+	}
+
+	private <T> void indexRecipeEntry(PendingRecipeEntry<T> entry) {
+		for (T recipe : entry.recipes) {
+			try {
+				IIngredientSupplier ingredientSupplier = IngredientSupplierHelper.getIngredientSupplier(
+					recipe, entry.category, ingredientManager);
+				for (RecipeMap recipeMap : recipeMaps.values()) {
+					recipeMap.addRecipe(entry.recipeType, recipe, ingredientSupplier);
+				}
+			} catch (RuntimeException | LinkageError e) {
+				String recipeInfo = RecipeDebugUtil.getDebugInfoFromRecipe(recipe, entry.category, ingredientManager);
+				LOGGER.error("Found a broken recipe during index building: {}\n", recipeInfo, e);
 			}
-			return true;
-		} catch (RuntimeException | LinkageError e) {
-			String recipeInfo = RecipeErrorUtil.getInfoFromRecipe(recipe, recipeCategory, ingredientManager);
-			LOGGER.error("Found a broken recipe, failed to addRecipe: {}\n", recipeInfo, e);
-			return false;
 		}
 	}
+
+	/**
+	 * Check if the recipe index is ready without blocking.
+	 * Called by InternalRecipeManagerPlugin before focus-based queries.
+	 * Returns true if the index is built and ready for queries.
+	 */
+	public boolean isIndexReady() {
+		return indexBuildFuture.isDone();
+	}
+
+	private record PendingRecipeEntry<T>(
+		IRecipeCategory<T> category,
+		RecipeType<T> recipeType,
+		List<T> recipes
+	) {}
 
 	public boolean isCategoryHidden(IRecipeCategory<?> recipeCategory, IFocusGroup focuses) {
 		// hide the category if it has been explicitly hidden
@@ -283,13 +329,6 @@ public class RecipeManagerInternal {
 
 	public Optional<RecipeType<?>> getRecipeType(ResourceLocation recipeUid) {
 		return recipeTypeDataMap.getType(recipeUid);
-	}
-
-	@Unmodifiable
-	@SuppressWarnings("unchecked")
-	public <T> List<IRecipeCategoryDecorator<T>> getRecipeCategoryDecorators(RecipeType<T> recipeType) {
-		ImmutableList<IRecipeCategoryDecorator<?>> decorators = recipeCategoryDecorators.get(recipeType);
-		return (List<IRecipeCategoryDecorator<T>>) (Object) decorators;
 	}
 
 	public void compact() {

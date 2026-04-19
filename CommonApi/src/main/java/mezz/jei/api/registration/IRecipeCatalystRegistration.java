@@ -34,7 +34,7 @@ public interface IRecipeCatalystRegistration {
 	 * @see #addRecipeCatalysts(RecipeType, ItemStack...) to add {@link ItemStack} catalysts.
 	 * @see #addRecipeCatalysts(RecipeType, IIngredientType, List) to add non-{@link ItemLike} catalysts.
 	 *
-	 * @since 15.20.0
+	 * @since 19.19.2
 	 */
 	void addRecipeCatalysts(RecipeType<?> recipeType, ItemLike... ingredients);
 
@@ -48,7 +48,7 @@ public interface IRecipeCatalystRegistration {
 	 *
 	 * @see #addRecipeCatalysts(RecipeType, IIngredientType, List) to add non-{@link ItemStack} catalysts.
 	 *
-	 * @since 15.20.0
+	 * @since 19.19.2
 	 */
 	default void addRecipeCatalysts(RecipeType<?> recipeType, ItemStack... ingredients) {
 		addRecipeCatalysts(recipeType, VanillaTypes.ITEM_STACK, List.of(ingredients));
@@ -61,7 +61,7 @@ public interface IRecipeCatalystRegistration {
 	 * @param recipeType     the type of recipe that the ingredients are a catalyst for
 	 * @param ingredientType the type of the ingredient
 	 * @param ingredients    the ingredients that can craft recipes (like a furnace or crafting table)
-	 * @since 15.20.0
+	 * @since 19.19.2
 	 */
 	<T> void addRecipeCatalysts(RecipeType<?> recipeType, IIngredientType<T> ingredientType, List<T> ingredients);
 
@@ -76,7 +76,7 @@ public interface IRecipeCatalystRegistration {
 	 * @see #addRecipeCatalyst(ItemStack, RecipeType...) to add {@link ItemStack} catalysts.
 	 * @see #addRecipeCatalyst(IIngredientType, Object, RecipeType...) to add non-{@link ItemLike} catalysts.
 	 *
-	 * @since 15.19.4
+	 * @since 19.18.2
 	 */
 	default void addRecipeCatalyst(ItemLike itemLike, RecipeType<?>... recipeTypes) {
 		addRecipeCatalyst(VanillaTypes.ITEM_STACK, itemLike.asItem().getDefaultInstance(), recipeTypes);

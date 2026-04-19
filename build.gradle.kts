@@ -1,24 +1,24 @@
 plugins {
     // https://plugins.gradle.org/plugin/com.diffplug.gradle.spotless
-	id("com.diffplug.spotless") version("6.25.0")
+	id("com.diffplug.spotless") version("7.0.4")
 
     // https://plugins.gradle.org/plugin/com.dorongold.task-tree
     id("com.dorongold.task-tree") version("4.0.0")
 
-    // https://repo.spongepowered.org/service/rest/repository/browse/maven-public/org/spongepowered/vanillagradle/
-    id("org.spongepowered.gradle.vanilla") version("0.2.1-SNAPSHOT") apply(false)
+    // https://maven.fabricmc.net/fabric-loom/fabric-loom.gradle.plugin/maven-metadata.xml
+    id("fabric-loom") version("1.11.0-alpha.26") apply(false)
+
+    // https://projects.neoforged.net/neoforged/moddevgradle
+    id("net.neoforged.moddev") version("2.0.26-beta") apply(false)
+
+    // https://plugins.gradle.org/plugin/me.modmuss50.mod-publish-plugin
+    id("me.modmuss50.mod-publish-plugin") version("0.7.3") apply(false)
 
     // https://files.minecraftforge.net/net/minecraftforge/gradle/ForgeGradle/index.html
     id("net.minecraftforge.gradle") version("6.0.26") apply(false)
 
     // https://mvnrepository.com/artifact/org.parchmentmc.librarian.forgegradle/org.parchmentmc.librarian.forgegradle.gradle.plugin
     id("org.parchmentmc.librarian.forgegradle") version("1.2.0") apply(false)
-
-    // https://plugins.gradle.org/plugin/me.modmuss50.mod-publish-plugin
-    id("me.modmuss50.mod-publish-plugin") version("0.7.3") apply(false)
-
-    // https://maven.fabricmc.net/fabric-loom/fabric-loom.gradle.plugin/maven-metadata.xml
-    id("fabric-loom") version("1.8.0-alpha.16") apply(false)
 }
 apply {
 	from("buildtools/ColoredOutput.gradle")
@@ -31,11 +31,15 @@ repositories {
 val curseHomepageUrl: String by extra
 val curseProjectId: String by extra
 val fabricApiVersion: String by extra
+val fabricApiVersionRange: String by extra
 val fabricLoaderVersion: String by extra
+val fabricLoaderVersionRange: String by extra
 val forgeVersion: String by extra
 val forgeVersionRange: String by extra
-val forgeLoaderVersionRange: String by extra
 val githubUrl: String by extra
+val forgeLoaderVersionRange: String by extra
+val neoforgeVersionRange: String by extra
+val neoforgeLoaderVersionRange: String by extra
 val parchmentVersionForge: String by extra
 val minecraftVersion: String by extra
 val minecraftVersionRange: String by extra
@@ -57,7 +61,7 @@ spotless {
         indentWithTabs(4)
         replaceRegex("class-level javadoc indentation fix", "^\\*", " *")
         replaceRegex("method-level javadoc indentation fix", "\t\\*", "\t *")
-    }
+	}
 }
 
 subprojects {
@@ -99,10 +103,14 @@ subprojects {
         val properties = mapOf(
             "curseHomepageUrl" to curseHomepageUrl,
             "fabricApiVersion" to fabricApiVersion,
+            "fabricApiVersionRange" to fabricApiVersionRange,
             "fabricLoaderVersion" to fabricLoaderVersion,
+            "fabricLoaderVersionRange" to fabricLoaderVersionRange,
             "forgeVersionRange" to forgeVersionRange,
             "githubUrl" to githubUrl,
             "forgeLoaderVersionRange" to forgeLoaderVersionRange,
+            "neoforgeVersionRange" to neoforgeVersionRange,
+            "neoforgeLoaderVersionRange" to neoforgeLoaderVersionRange,
             "minecraftVersion" to minecraftVersion,
             "minecraftVersionRange" to minecraftVersionRange,
             "modAuthor" to modAuthor,
@@ -113,7 +121,7 @@ subprojects {
             "version" to version,
         )
         inputs.properties(properties)
-        filesMatching(listOf("META-INF/mods.toml", "pack.mcmeta", "fabric.mod.json")) {
+        filesMatching(listOf("META-INF/mods.toml", "META-INF/neoforge.mods.toml", "pack.mcmeta", "fabric.mod.json")) {
             expand(properties)
         }
     }

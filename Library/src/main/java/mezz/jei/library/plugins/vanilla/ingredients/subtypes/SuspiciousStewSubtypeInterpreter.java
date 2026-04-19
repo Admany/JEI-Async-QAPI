@@ -1,16 +1,17 @@
 package mezz.jei.library.plugins.vanilla.ingredients.subtypes;
 
-import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
+import mezz.jei.api.ingredients.subtypes.ISubtypeInterpreter;
 import mezz.jei.api.ingredients.subtypes.UidContext;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.SuspiciousStewEffects;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
 
-public class SuspiciousStewSubtypeInterpreter implements IIngredientSubtypeInterpreter<ItemStack> {
+public class SuspiciousStewSubtypeInterpreter implements ISubtypeInterpreter<ItemStack> {
 	public static final SuspiciousStewSubtypeInterpreter INSTANCE = new SuspiciousStewSubtypeInterpreter();
 
 	private SuspiciousStewSubtypeInterpreter() {
@@ -18,10 +19,22 @@ public class SuspiciousStewSubtypeInterpreter implements IIngredientSubtypeInter
 	}
 
 	@Override
-	public String apply(ItemStack itemStack, UidContext context) {
-		List<String> strings = getPotionEffectStrings(itemStack);
-		if (strings.isEmpty()) {
-			return IIngredientSubtypeInterpreter.NONE;
+	public @Nullable Object getSubtypeData(ItemStack ingredient, UidContext context) {
+		return ingredient.get(DataComponents.SUSPICIOUS_STEW_EFFECTS);
+	}
+
+	@Override
+	public String getLegacyStringSubtypeInfo(ItemStack itemStack, UidContext context) {
+		SuspiciousStewEffects suspiciousStewEffects = itemStack.get(DataComponents.SUSPICIOUS_STEW_EFFECTS);
+		if (suspiciousStewEffects == null) {
+			return "";
+		}
+		List<SuspiciousStewEffects.Entry> effects = suspiciousStewEffects.effects();
+		List<String> strings = new ArrayList<>();
+		for (SuspiciousStewEffects.Entry e : effects) {
+			String effect = e.effect().getRegisteredName();
+			int duration = e.duration();
+			strings.add(effect + "." + duration);
 		}
 
 		StringJoiner joiner = new StringJoiner(",", "[", "]");
@@ -30,27 +43,5 @@ public class SuspiciousStewSubtypeInterpreter implements IIngredientSubtypeInter
 			joiner.add(s);
 		}
 		return joiner.toString();
-	}
-
-	private static List<String> getPotionEffectStrings(ItemStack itemStack) {
-		List<String> effects = new ArrayList<>();
-		CompoundTag compoundtag = itemStack.getTag();
-		if (compoundtag != null && compoundtag.contains("Effects", 9)) {
-			ListTag effectsTag = compoundtag.getList("Effects", 10);
-
-			for (int i = 0; i < effectsTag.size(); ++i) {
-				CompoundTag effectTag = effectsTag.getCompound(i);
-				int duration;
-				if (effectTag.contains("EffectDuration", 99)) {
-					duration = effectTag.getInt("EffectDuration");
-				} else {
-					duration = 160;
-				}
-
-				int effectId = effectTag.getInt("EffectId");
-				effects.add(effectId + "." + duration);
-			}
-		}
-		return effects;
 	}
 }

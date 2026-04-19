@@ -33,7 +33,7 @@ public interface IJeiCompostingRecipe {
 
 	/**
 	 * Unique ID for this recipe.
-	 * @since 15.5.0
+	 * @since 19.1.0
 	 */
 	ResourceLocation getUid();
 }

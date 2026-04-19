@@ -58,7 +58,7 @@ public interface IRecipeTransferRegistration {
 	 * Add a universal handler that can handle any category of recipe.
 	 * Useful for mods with recipe pattern encoding, for automated recipe systems.
 	 *
-	 * @since 15.11.1
+	 * @since 19.8.1
 	 */
 	<C extends AbstractContainerMenu> void addUniversalRecipeTransferHandler(IUniversalRecipeTransferHandler<C> universalRecipeTransferHandler);
 
@@ -67,6 +67,6 @@ public interface IRecipeTransferRegistration {
 	 * Useful for mods with recipe pattern encoding, for automated recipe systems.
 	 * @deprecated use {@link #addUniversalRecipeTransferHandler(IUniversalRecipeTransferHandler)}
 	 */
-	@Deprecated(since = "15.11.1", forRemoval = true)
+	@Deprecated(since = "19.8.1", forRemoval = true)
 	<C extends AbstractContainerMenu, R> void addUniversalRecipeTransferHandler(IRecipeTransferHandler<C, R> recipeTransferHandler);
 }

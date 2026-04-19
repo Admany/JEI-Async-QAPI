@@ -24,14 +24,14 @@ import java.util.Optional;
  * @see IRecipeTransferHandler for a handler that only handles one type of recipe.
  * @see IRecipeTransferInfo for creating a simple handler for inventories with slots.
  *
- * @since 15.11.1
+ * @since 19.8.1
  */
 public interface IUniversalRecipeTransferHandler<C extends AbstractContainerMenu> {
 
 	/**
 	 * The container that this recipe transfer handler can use.
 	 *
-	 * @since 15.11.1
+	 * @since 19.8.1
 	 */
 	Class<? extends C> getContainerClass();
 
@@ -39,7 +39,7 @@ public interface IUniversalRecipeTransferHandler<C extends AbstractContainerMenu
 	 * Return the optional menu type that this recipe transfer helper supports.
 	 * This is used to optionally narrow down the type of container handled by this recipe transfer handler.
 	 *
-	 * @since 15.11.1
+	 * @since 19.8.1
 	 */
 	Optional<MenuType<C>> getMenuType();
 
@@ -52,7 +52,7 @@ public interface IUniversalRecipeTransferHandler<C extends AbstractContainerMenu
 	 * @param doTransfer  if true, do the transfer. if false, check for errors but do not actually transfer the items
 	 * @return a recipe transfer error if the recipe can't be transferred. Return null on success.
 	 *
-	 * @since 15.11.1
+	 * @since 19.8.1
 	 */
 	@Nullable
 	IRecipeTransferError transferRecipe(C container, Object recipe, IRecipeSlotsView recipeSlots, Player player, boolean maxTransfer, boolean doTransfer);

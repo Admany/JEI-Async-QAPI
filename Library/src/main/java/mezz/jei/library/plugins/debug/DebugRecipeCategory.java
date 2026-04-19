@@ -6,7 +6,6 @@ import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.drawable.IDrawable;
-import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.gui.inputs.IJeiInputHandler;
 import mezz.jei.api.gui.inputs.IJeiUserInput;
@@ -16,7 +15,6 @@ import mezz.jei.api.helpers.IPlatformFluidHelper;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeType;
@@ -27,7 +25,6 @@ import mezz.jei.api.runtime.IIngredientListOverlay;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.common.Internal;
-import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.gui.textures.Textures;
 import mezz.jei.library.plugins.debug.ingredients.DebugIngredient;
 import net.minecraft.ChatFormatting;
@@ -68,7 +65,7 @@ public class DebugRecipeCategory<F> implements IRecipeCategory<DebugRecipe> {
 		this.ingredientManager = ingredientManager;
 		this.localizedName = Component.literal("debug");
 
-		ResourceLocation backgroundTexture = new ResourceLocation(ModIds.JEI_ID, "textures/jei/gui/debug.png");
+		ResourceLocation backgroundTexture = ResourceLocation.fromNamespaceAndPath(ModIds.JEI_ID, "textures/jei/gui/debug.png");
 		this.tankBackground = guiHelper.createDrawable(backgroundTexture, 220, 196, 18, 60);
 		this.tankOverlay = guiHelper.createDrawable(backgroundTexture, 238, 196, 18, 60);
 		this.item = guiHelper.createDrawableItemStack(new ItemStack(Items.ACACIA_LEAVES));
@@ -129,11 +126,10 @@ public class DebugRecipeCategory<F> implements IRecipeCategory<DebugRecipe> {
 
 	private <T> void drawIngredientName(Minecraft minecraft, GuiGraphics guiGraphics, ITypedIngredient<T> ingredient) {
 		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(ingredient.getType());
-		String jeiUid = ingredientHelper.getUniqueId(ingredient.getIngredient(), UidContext.Ingredient);
-		guiGraphics.drawString(minecraft.font, jeiUid, 50, 52, 0, false);
+		String serialized = ingredientHelper.getResourceLocation(ingredient.getIngredient()).toString();
+		guiGraphics.drawString(minecraft.font, serialized, 50, 52, 0, false);
 	}
 
-	@SuppressWarnings("removal")
 	@Override
 	public void setRecipe(IRecipeLayoutBuilder builder, DebugRecipe recipe, IFocusGroup focuses) {
 		// ITEM type
@@ -159,22 +155,12 @@ public class DebugRecipeCategory<F> implements IRecipeCategory<DebugRecipe> {
 		}
 
 		{
-			long capacity = 10 * bucketVolume;
-			// empty fluid stack
-			builder.addOutputSlot(110, 0)
-				.setFluidRenderer(capacity, false, 16, 58)
-				.setOverlay(tankOverlay, -1, -1)
-				.setBackground(tankBackground, -1, -1)
-				.addFluidStack(Fluids.LAVA, 0);
-		}
-
-		{
 			long capacity = 2 * bucketVolume;
 			// random amount between half capacity and full
 			long amount = (capacity / 2) + (int) ((Math.random() * capacity) / 2);
 			builder.addInputSlot(24, 0)
 				.setFluidRenderer(capacity, true, 12, 47)
-				.addIngredient(fluidType, platformFluidHelper.create(Fluids.LAVA, amount));
+				.addIngredient(fluidType, platformFluidHelper.create(Fluids.LAVA.defaultFluidState().holder(), amount));
 		}
 
 		// DEBUG type
@@ -188,27 +174,14 @@ public class DebugRecipeCategory<F> implements IRecipeCategory<DebugRecipe> {
 		builder.addInputSlot(40, 32)
 			.addIngredient(DebugIngredient.TYPE, new DebugIngredient(3))
 			.addIngredientsUnsafe(List.of(
-				platformFluidHelper.create(Fluids.LAVA, (int) ((1.0 + Math.random()) * bucketVolume)),
+				platformFluidHelper.create(Fluids.LAVA.defaultFluidState().holder(), (int) ((1.0 + Math.random()) * bucketVolume)),
 				new ItemStack(Items.ACACIA_LEAVES)
 			))
-			.addTooltipCallback(new mezz.jei.api.gui.ingredient.IRecipeSlotTooltipCallback() {
-				@SuppressWarnings("removal")
-				@Override
-				public void onTooltip(IRecipeSlotView recipeSlotView, List<Component> tooltip) {
-					switch (recipeSlotView.getRole()) {
-						case INPUT -> tooltip.add(Component.literal("Input DebugIngredient"));
-						case OUTPUT -> tooltip.add(Component.literal( "Output DebugIngredient"));
-						case CATALYST -> tooltip.add(Component.literal("Catalyst DebugIngredient"));
-					}
-				}
-
-				@Override
-				public void onRichTooltip(IRecipeSlotView recipeSlotView, ITooltipBuilder tooltip) {
-					switch (recipeSlotView.getRole()) {
-						case INPUT -> tooltip.add(Component.literal("Input DebugIngredient"));
-						case OUTPUT -> tooltip.add(Component.literal( "Output DebugIngredient"));
-						case CATALYST -> tooltip.add(Component.literal("Catalyst DebugIngredient"));
-					}
+			.addRichTooltipCallback((recipeSlotView, tooltip) -> {
+				switch (recipeSlotView.getRole()) {
+					case INPUT -> tooltip.add(Component.literal("Input DebugIngredient"));
+					case OUTPUT -> tooltip.add(Component.literal( "Output DebugIngredient"));
+					case CATALYST -> tooltip.add(Component.literal("Catalyst DebugIngredient"));
 				}
 			});
 	}
@@ -216,14 +189,6 @@ public class DebugRecipeCategory<F> implements IRecipeCategory<DebugRecipe> {
 	@Override
 	public void createRecipeExtras(IRecipeExtrasBuilder builder, DebugRecipe recipe, IFocusGroup focuses) {
 		builder.addInputHandler(new JeiInputHandler(recipe, new ScreenRectangle(0, 0, RECIPE_WIDTH, RECIPE_HEIGHT)));
-	}
-
-	@SuppressWarnings({"removal"})
-	@Override
-	public List<Component> getTooltipStrings(DebugRecipe recipe, IRecipeSlotsView recipeSlotsView, double mouseX, double mouseY) {
-		JeiTooltip tooltip = new JeiTooltip();
-		getTooltip(tooltip, recipe, recipeSlotsView, mouseX, mouseY);
-		return tooltip.toLegacyToComponents();
 	}
 
 	@Override
@@ -293,5 +258,10 @@ public class DebugRecipeCategory<F> implements IRecipeCategory<DebugRecipe> {
 	@Override
 	public @Nullable ResourceLocation getRegistryName(DebugRecipe recipe) {
 		return recipe.getRegistryName();
+	}
+
+	@Override
+	public boolean needsRecipeBorder() {
+		return false;
 	}
 }

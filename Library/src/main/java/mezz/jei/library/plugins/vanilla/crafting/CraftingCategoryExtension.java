@@ -4,56 +4,61 @@ import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.ingredient.ICraftingGridHelper;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.category.extensions.vanilla.crafting.ICraftingCategoryExtension;
-import mezz.jei.common.platform.IPlatformRecipeHelper;
-import mezz.jei.common.platform.Services;
 import mezz.jei.library.util.RecipeUtil;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.ShapedRecipe;
 
-import net.minecraft.world.item.crafting.Ingredient;
-import org.jetbrains.annotations.Nullable;
-
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
-public class CraftingCategoryExtension<T extends CraftingRecipe> implements ICraftingCategoryExtension {
-	protected final T recipe;
-
-	public CraftingCategoryExtension(T recipe) {
-		this.recipe = recipe;
-	}
-
+public class CraftingCategoryExtension implements ICraftingCategoryExtension<CraftingRecipe> {
 	@Override
-	public void setRecipe(IRecipeLayoutBuilder builder, ICraftingGridHelper craftingGridHelper, IFocusGroup focuses) {
-		List<List<ItemStack>> inputs = new ArrayList<>();
-		for (Ingredient ingredient : recipe.getIngredients()) {
-			List<ItemStack> items = List.of(ingredient.getItems());
-			inputs.add(items);
-		}
+	public void setRecipe(RecipeHolder<CraftingRecipe> recipeHolder, IRecipeLayoutBuilder builder, ICraftingGridHelper craftingGridHelper, IFocusGroup focuses) {
+		CraftingRecipe recipe = recipeHolder.value();
 		ItemStack resultItem = RecipeUtil.getResultItem(recipe);
 
-		int width = getWidth();
-		int height = getHeight();
+		int width = getWidth(recipeHolder);
+		int height = getHeight(recipeHolder);
 		craftingGridHelper.createAndSetOutputs(builder, List.of(resultItem));
-		craftingGridHelper.createAndSetInputs(builder, inputs, width, height);
+		craftingGridHelper.createAndSetIngredients(builder, recipe.getIngredients(), width, height);
 	}
 
-	@Nullable
+	@SuppressWarnings("removal")
 	@Override
-	public ResourceLocation getRegistryName() {
-		return recipe.getId();
-	}
-
-	@Override
-	public int getWidth() {
-		IPlatformRecipeHelper recipeHelper = Services.PLATFORM.getRecipeHelper();
-		return recipeHelper.getWidth(recipe);
+	public Optional<ResourceLocation> getRegistryName(RecipeHolder<CraftingRecipe> recipeHolder) {
+		return Optional.of(recipeHolder.id());
 	}
 
 	@Override
-	public int getHeight() {
-		IPlatformRecipeHelper recipeHelper = Services.PLATFORM.getRecipeHelper();
-		return recipeHelper.getHeight(recipe);
+	public int getWidth(RecipeHolder<CraftingRecipe> recipeHolder) {
+		CraftingRecipe recipe = recipeHolder.value();
+		if (recipe instanceof ShapedRecipe shapedRecipe) {
+			return shapedRecipe.getWidth();
+		}
+		if (recipe instanceof JeiShapedRecipe shapedRecipe) {
+			return shapedRecipe.getWidth();
+		}
+		return 0;
+	}
+
+	@Override
+	public int getHeight(RecipeHolder<CraftingRecipe> recipeHolder) {
+		CraftingRecipe recipe = recipeHolder.value();
+		if (recipe instanceof ShapedRecipe shapedRecipe) {
+			return shapedRecipe.getHeight();
+		}
+		if (recipe instanceof JeiShapedRecipe shapedRecipe) {
+			return shapedRecipe.getHeight();
+		}
+		return 0;
+	}
+
+	@Override
+	public boolean isHandled(RecipeHolder<CraftingRecipe> recipeHolder) {
+		CraftingRecipe recipe = recipeHolder.value();
+		return !recipe.isSpecial();
 	}
 }

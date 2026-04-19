@@ -10,7 +10,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.TooltipFlag;
 
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -18,7 +17,7 @@ import java.util.List;
  *
  * If you have a new type of ingredient to add to JEI,
  * you will have to implement this to create a default renderer for
- * {@link IModIngredientRegistration#register(IIngredientType, Collection, IIngredientHelper, IIngredientRenderer)}
+ * {@link IModIngredientRegistration#register}
  */
 public interface IIngredientRenderer<T> {
 	/**
@@ -39,7 +38,7 @@ public interface IIngredientRenderer<T> {
 	 * @param posX       the x offset for rendering this ingredient
 	 * @param posY       the y offset for rendering this ingredient
 	 *
-	 * @since 15.8.5
+	 * @since 19.5.5
 	 */
 	default void render(GuiGraphics guiGraphics, T ingredient, int posX, int posY) {
 		PoseStack poseStack = guiGraphics.pose();
@@ -55,7 +54,7 @@ public interface IIngredientRenderer<T> {
 	 * Render a batch of ingredients.
 	 * Implementing this is not necessary, but can be used to optimize rendering many ingredients at once.
 	 *
-	 * @since 15.16.0
+	 * @since 19.14.0
 	 */
 	default void renderBatch(GuiGraphics guiGraphics, List<BatchRenderElement<T>> elements) {
 		for (BatchRenderElement<T> element : elements) {
@@ -64,15 +63,12 @@ public interface IIngredientRenderer<T> {
 	}
 
 	/**
-	 * Get the tooltip text for this ingredient. JEI renders the tooltip based on this.
+	 * Get the tooltip text for this ingredient. JEI searches tooltips based on this.
 	 *
 	 * @param ingredient  The ingredient to get the tooltip for.
 	 * @param tooltipFlag Whether to show advanced information on item tooltips, toggled by F3+H
 	 * @return The tooltip text for the ingredient.
-	 *
-	 * @deprecated use {@link #getTooltip(ITooltipBuilder, Object, TooltipFlag)}
 	 */
-	@Deprecated(since = "15.8.4", forRemoval = true)
 	List<Component> getTooltip(T ingredient, TooltipFlag tooltipFlag);
 
 	/**
@@ -82,7 +78,7 @@ public interface IIngredientRenderer<T> {
 	 * @param ingredient  The ingredient to get the tooltip for.
 	 * @param tooltipFlag Whether to show advanced information on item tooltips, toggled by F3+H
 	 *
-	 * @since 15.8.4
+	 * @since 19.5.4
 	 */
 	default void getTooltip(ITooltipBuilder tooltip, T ingredient, TooltipFlag tooltipFlag) {
 		List<Component> components = getTooltip(ingredient, tooltipFlag);

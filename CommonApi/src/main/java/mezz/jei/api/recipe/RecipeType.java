@@ -1,12 +1,21 @@
 package mezz.jei.api.recipe;
 
+import com.google.common.base.Suppliers;
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.recipe.category.IRecipeCategory;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
+
+import java.util.function.Supplier;
 
 /**
  * Identifies a type of recipe, (i.e. Crafting Table Recipe, Furnace Recipe).
  * Each {@link IRecipeCategory} can be uniquely identified by its {@link RecipeType}.
+ *
+ * Unfortunately, the vanilla RecipeType only works for recipes that extend the vanilla {@link Recipe} class,
+ * so this more general version is needed for modded recipes in JEI.
  *
  * @see RecipeTypes for all the built-in recipe types that are added by JEI.
  *
@@ -14,14 +23,58 @@ import net.minecraft.resources.ResourceLocation;
  */
 public final class RecipeType<T> {
 	public static <T> RecipeType<T> create(String nameSpace, String path, Class<? extends T> recipeClass) {
-		ResourceLocation uid = new ResourceLocation(nameSpace, path);
+		ResourceLocation uid = ResourceLocation.fromNamespaceAndPath(nameSpace, path);
 		return new RecipeType<>(uid, recipeClass);
+	}
+
+	/**
+	 * Create a JEI RecipeType from a Vanilla RecipeType.
+	 * Returns a RecipeType that uses {@link RecipeHolder} to hold recipes.
+	 * @since 16.0.0
+	 */
+	public static <R extends Recipe<?>> RecipeType<RecipeHolder<R>> createFromVanilla(net.minecraft.world.item.crafting.RecipeType<R> vanillaRecipeType) {
+		ResourceLocation uid = BuiltInRegistries.RECIPE_TYPE.getKey(vanillaRecipeType);
+		if (uid == null) {
+			throw new IllegalArgumentException("Vanilla Recipe Type must be registered before using it here. %s".formatted(vanillaRecipeType));
+		}
+		return createRecipeHolderType(uid);
+	}
+
+	/**
+	 * Create a JEI RecipeType from a Vanilla RecipeType's registered uid.
+	 * Returns a RecipeType that uses {@link RecipeHolder} to hold recipes.
+	 * @since 19.16.5
+	 */
+	public static <R extends Recipe<?>> RecipeType<RecipeHolder<R>> createRecipeHolderType(ResourceLocation uid) {
+		@SuppressWarnings({"unchecked", "RedundantCast"})
+		Class<? extends RecipeHolder<R>> holderClass = (Class<? extends RecipeHolder<R>>) (Object) RecipeHolder.class;
+		return new RecipeType<>(uid, holderClass);
+	}
+
+	/**
+	 * Create a Deferred Supplier for a JEI RecipeType from a Deferred Vanilla RecipeType.
+	 *
+	 * This is useful when you register vanilla recipe types using a deferred registration system.
+	 *
+	 * @since 19.16.5
+	 */
+	public static <R extends Recipe<?>> Supplier<RecipeType<RecipeHolder<R>>> createFromDeferredVanilla(
+		Supplier<net.minecraft.world.item.crafting.RecipeType<R>> deferredVanillaRecipeType
+	) {
+		return Suppliers.memoize(() -> createFromVanilla(deferredVanillaRecipeType.get()));
 	}
 
 	private final ResourceLocation uid;
 	private final Class<? extends T> recipeClass;
 
+	@SuppressWarnings("ConstantValue")
 	public RecipeType(ResourceLocation uid, Class<? extends T> recipeClass) {
+		if (uid == null) {
+			throw new NullPointerException("uid must not be null.");
+		}
+		if (recipeClass == null) {
+			throw new NullPointerException("recipeClass must not be null.");
+		}
 		this.uid = uid;
 		this.recipeClass = recipeClass;
 	}

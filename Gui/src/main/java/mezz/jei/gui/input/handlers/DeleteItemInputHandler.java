@@ -8,7 +8,6 @@ import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.common.network.packets.PacketDeletePlayerItem;
-import mezz.jei.common.network.packets.PacketJei;
 import mezz.jei.common.util.ServerCommandUtil;
 import mezz.jei.gui.input.IUserInputHandler;
 import mezz.jei.gui.input.UserInput;
@@ -68,7 +67,7 @@ public class DeleteItemInputHandler implements IUserInputHandler {
 		}
 		if (!userInput.isSimulate()) {
 			player.containerMenu.setCarried(ItemStack.EMPTY);
-			PacketJei packet = new PacketDeletePlayerItem(itemStack);
+			var packet = new PacketDeletePlayerItem(itemStack);
 			serverConnection.sendPacketToServer(packet);
 		}
 		return Optional.of(this);

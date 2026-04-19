@@ -6,9 +6,8 @@ import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.common.platform.IPlatformRecipeHelper;
 import mezz.jei.library.util.RecipeUtil;
-import net.minecraft.world.Container;
-import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.SmithingRecipeInput;
 import net.minecraft.world.item.crafting.SmithingTrimRecipe;
 
 import java.util.List;
@@ -33,7 +32,7 @@ public class SmithingTrimCategoryExtension extends SmithingCategoryExtension<Smi
 			ItemStack base = baseSlot.getDisplayedItemStack().orElse(ItemStack.EMPTY);
 			ItemStack addition = additionSlot.getDisplayedItemStack().orElse(ItemStack.EMPTY);
 
-			Container recipeInput = createInput(template, base, addition);
+			SmithingRecipeInput recipeInput = new SmithingRecipeInput(template, base, addition);
 			ItemStack output = RecipeUtil.assembleResultItem(recipeInput, recipe);
 			outputSlot.createDisplayOverrides()
 				.addItemStack(output);
@@ -46,19 +45,10 @@ public class SmithingTrimCategoryExtension extends SmithingCategoryExtension<Smi
 			baseSlot.createDisplayOverrides()
 				.addItemStack(base);
 
-			Container recipeInput = createInput(template, base, addition);
+			SmithingRecipeInput recipeInput = new SmithingRecipeInput(template, base, addition);
 			output = RecipeUtil.assembleResultItem(recipeInput, recipe);
 			outputSlot.createDisplayOverrides()
 				.addItemStack(output);
 		}
-	}
-
-
-	private static Container createInput(ItemStack template, ItemStack base, ItemStack addition) {
-		Container container = new SimpleContainer(3);
-		container.setItem(0, template);
-		container.setItem(1, base);
-		container.setItem(2, addition);
-		return container;
 	}
 }

@@ -1,19 +1,18 @@
 package mezz.jei.forge.platform;
 
+import com.mojang.serialization.Codec;
 import mezz.jei.api.forge.ForgeTypes;
-import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientTypeWithSubtypes;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
-import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
 import mezz.jei.library.render.FluidTankRenderer;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
@@ -22,24 +21,17 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidType;
-import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.registries.ForgeRegistries;
-import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.Optional;
 
 public class FluidHelper implements IPlatformFluidHelperInternal<FluidStack> {
 	@Override
 	public IIngredientTypeWithSubtypes<Fluid, FluidStack> getFluidIngredientType() {
 		return ForgeTypes.FLUID_STACK;
-	}
-
-	@Override
-	public IIngredientSubtypeInterpreter<FluidStack> getAllNbtSubtypeInterpreter() {
-		return AllFluidNbt.INSTANCE;
 	}
 
 	@Override
@@ -60,11 +52,6 @@ public class FluidHelper implements IPlatformFluidHelperInternal<FluidStack> {
 	}
 
 	@Override
-	public Optional<CompoundTag> getTag(FluidStack ingredient) {
-		return Optional.ofNullable(ingredient.getTag());
-	}
-
-	@Override
 	public FluidStack copyWithAmount(FluidStack ingredient, long amount) {
 		FluidStack copy = ingredient.copy();
 		int intAmount = Math.toIntExact(amount);
@@ -73,7 +60,13 @@ public class FluidHelper implements IPlatformFluidHelperInternal<FluidStack> {
 	}
 
 	@Override
-	public void getTooltip(ITooltipBuilder tooltip, FluidStack ingredient, TooltipFlag tooltipFlag) {
+	public DataComponentPatch getComponentsPatch(FluidStack ingredient) {
+		// TODO: update when Forge has FluidStack DataComponents
+		return DataComponentPatch.EMPTY;
+	}
+
+	@Override
+	public void getTooltip(List<Component> tooltip, FluidStack ingredient, TooltipFlag tooltipFlag) {
 		Fluid fluid = ingredient.getFluid();
 		if (fluid.isSame(Fluids.EMPTY)) {
 			return;
@@ -121,46 +114,28 @@ public class FluidHelper implements IPlatformFluidHelperInternal<FluidStack> {
 		return displayName;
 	}
 
-	private static class AllFluidNbt implements IIngredientSubtypeInterpreter<FluidStack> {
-		public static final AllFluidNbt INSTANCE = new AllFluidNbt();
-
-		private AllFluidNbt() {
-		}
-
-		@Override
-		public String apply(FluidStack fluidStack, UidContext context) {
-			CompoundTag nbtTagCompound = fluidStack.getTag();
-			if (nbtTagCompound == null || nbtTagCompound.isEmpty()) {
-				return IIngredientSubtypeInterpreter.NONE;
-			}
-			return nbtTagCompound.toString();
-		}
+	@Override
+	public FluidStack create(Holder<Fluid> fluid, long amount) {
+		int intAmount = (int) Math.min(amount, Integer.MAX_VALUE);
+		return new FluidStack(fluid.value(), intAmount);
 	}
 
 	@Override
-	public FluidStack create(Fluid fluid, long amount, @Nullable CompoundTag tag) {
+	public FluidStack create(Holder<Fluid> fluid, long amount, DataComponentPatch components) {
+		// TODO: update when Forge has FluidStack DataComponents
 		int intAmount = (int) Math.min(amount, Integer.MAX_VALUE);
-		return new FluidStack(fluid, intAmount, tag);
-	}
-
-	@Override
-	public FluidStack create(Fluid fluid, long amount) {
-		int intAmount = (int) Math.min(amount, Integer.MAX_VALUE);
-		return new FluidStack(fluid, intAmount);
+		return new FluidStack(fluid.value(), intAmount);
 	}
 
 	@Override
 	public FluidStack copy(FluidStack ingredient) {
-		return new FluidStack(ingredient.getRawFluid(), ingredient.getAmount(), ingredient.getTag());
+		return ingredient.copy();
 	}
 
 	@Override
 	public FluidStack normalize(FluidStack ingredient) {
 		if (ingredient.getAmount() == FluidType.BUCKET_VOLUME) {
 			return ingredient;
-		}
-		if (ingredient.getRawFluid() == Fluids.EMPTY) {
-			return FluidStack.EMPTY;
 		}
 		FluidStack copy = this.copy(ingredient);
 		copy.setAmount(FluidType.BUCKET_VOLUME);
@@ -169,8 +144,12 @@ public class FluidHelper implements IPlatformFluidHelperInternal<FluidStack> {
 
 	@Override
 	public Optional<FluidStack> getContainedFluid(ITypedIngredient<?> ingredient) {
-		return ingredient.getItemStack()
-			.flatMap(i -> i.getCapability(ForgeCapabilities.FLUID_HANDLER_ITEM).resolve())
-			.map(c -> c.drain(Integer.MAX_VALUE, IFluidHandler.FluidAction.SIMULATE));
+		// TODO: update when Forge has item capabilities for fluid containers
+		return Optional.empty();
+	}
+
+	@Override
+	public Codec<FluidStack> getCodec() {
+		return FluidStack.CODEC;
 	}
 }

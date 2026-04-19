@@ -1,20 +1,18 @@
 package mezz.jei.library.plugins.vanilla.ingredients.subtypes;
 
-import com.google.common.collect.Lists;
-import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
+import mezz.jei.api.ingredients.subtypes.ISubtypeInterpreter;
 import mezz.jei.api.ingredients.subtypes.UidContext;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.FireworkRocketItem;
-import net.minecraft.world.item.FireworkStarItem;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.FireworkExplosion;
+import net.minecraft.world.item.component.Fireworks;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
 
-public class FireworkRocketSubtypeInterpreter implements IIngredientSubtypeInterpreter<ItemStack> {
+public class FireworkRocketSubtypeInterpreter implements ISubtypeInterpreter<ItemStack> {
 	public static final FireworkRocketSubtypeInterpreter INSTANCE = new FireworkRocketSubtypeInterpreter();
 
 	private FireworkRocketSubtypeInterpreter() {
@@ -22,27 +20,21 @@ public class FireworkRocketSubtypeInterpreter implements IIngredientSubtypeInter
 	}
 
 	@Override
-	public String apply(ItemStack itemStack, UidContext context) {
-		CompoundTag compoundtag = itemStack.getTagElement("Fireworks");
-		if (compoundtag == null) {
-			return IIngredientSubtypeInterpreter.NONE;
-		}
-		int flightDuration = 0;
-		if (compoundtag.contains("Flight", 99)) {
-			flightDuration = compoundtag.getByte("Flight");
-		}
+	public @Nullable Object getSubtypeData(ItemStack ingredient, UidContext context) {
+		return ingredient.get(DataComponents.FIREWORKS);
+	}
 
+	@Override
+	public String getLegacyStringSubtypeInfo(ItemStack itemStack, UidContext context) {
+		Fireworks fireworks = itemStack.get(DataComponents.FIREWORKS);
+		if (fireworks == null) {
+			return "";
+		}
+		List<FireworkExplosion> explosions = fireworks.explosions();
 		List<String> strings = new ArrayList<>();
-
-		ListTag listtag = compoundtag.getList("Explosions", 10);
-		if (!listtag.isEmpty()) {
-			for (int i = 0; i < listtag.size(); ++i) {
-				CompoundTag compoundtag1 = listtag.getCompound(i);
-				List<Component> list = Lists.newArrayList();
-				FireworkStarItem.appendHoverText(compoundtag1, list);
-				FireworkRocketItem.Shape shape = FireworkRocketItem.Shape.byId(compoundtag1.getByte("Type"));
-				strings.add(shape.getName());
-			}
+		for (FireworkExplosion e : explosions) {
+			FireworkExplosion.Shape shape = e.shape();
+			strings.add(shape.getSerializedName());
 		}
 
 		StringJoiner joiner = new StringJoiner(",", "[", "]");
@@ -51,6 +43,7 @@ public class FireworkRocketSubtypeInterpreter implements IIngredientSubtypeInter
 			joiner.add(s);
 		}
 
+		int flightDuration = fireworks.flightDuration();
 		return flightDuration + ":" + joiner;
 	}
 }

@@ -18,14 +18,31 @@ public class DebugIngredientHelper implements IIngredientHelper<DebugIngredient>
 		return "JEI Debug Item #" + ingredient.number();
 	}
 
+	@SuppressWarnings("removal")
 	@Override
 	public String getUniqueId(DebugIngredient ingredient, UidContext context) {
 		return "JEI_debug_" + ingredient.number();
 	}
 
 	@Override
+	public Object getUid(DebugIngredient ingredient, UidContext context) {
+		return ingredient.number();
+	}
+
+	@SuppressWarnings("removal")
+	@Override
+	public String getWildcardId(DebugIngredient ingredient) {
+		return "JEI_debug";
+	}
+
+	@Override
+	public Object getGroupingUid(DebugIngredient ingredient) {
+		return DebugIngredient.class;
+	}
+
+	@Override
 	public ResourceLocation getResourceLocation(DebugIngredient ingredient) {
-		return new ResourceLocation(ModIds.JEI_ID, "debug_" + ingredient.number());
+		return ResourceLocation.fromNamespaceAndPath(ModIds.JEI_ID, "debug_" + ingredient.number());
 	}
 
 	@Override

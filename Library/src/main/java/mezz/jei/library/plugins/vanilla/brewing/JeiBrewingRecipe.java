@@ -1,13 +1,10 @@
 package mezz.jei.library.plugins.vanilla.brewing;
 
+import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.vanilla.IJeiBrewingRecipe;
-import mezz.jei.common.platform.IPlatformRegistry;
-import mezz.jei.common.platform.Services;
-import net.minecraft.core.registries.Registries;
+import mezz.jei.library.plugins.vanilla.ingredients.subtypes.PotionSubtypeInterpreter;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.alchemy.Potion;
-import net.minecraft.world.item.alchemy.PotionUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -104,14 +101,8 @@ public class JeiBrewingRecipe implements IJeiBrewingRecipe {
 	}
 
 	private static boolean arePotionsEqual(ItemStack potion1, ItemStack potion2) {
-		if (potion1.getItem() != potion2.getItem()) {
-			return false;
-		}
-		Potion type1 = PotionUtils.getPotion(potion1);
-		Potion type2 = PotionUtils.getPotion(potion2);
-		IPlatformRegistry<Potion> potionRegistry = Services.PLATFORM.getRegistry(Registries.POTION);
-		ResourceLocation key1 = potionRegistry.getRegistryName(type1).orElse(null);
-		ResourceLocation key2 = potionRegistry.getRegistryName(type2).orElse(null);
+		Object key1 = PotionSubtypeInterpreter.INSTANCE.getSubtypeData(potion1, UidContext.Recipe);
+		Object key2 = PotionSubtypeInterpreter.INSTANCE.getSubtypeData(potion2, UidContext.Recipe);
 		return Objects.equals(key1, key2);
 	}
 
@@ -127,8 +118,9 @@ public class JeiBrewingRecipe implements IJeiBrewingRecipe {
 
 	@Override
 	public String toString() {
-		Potion inputType = PotionUtils.getPotion(potionInputs.get(0));
-		Potion outputType = PotionUtils.getPotion(potionOutput);
-		return ingredients + " + [" + potionInputs.get(0).getItem() + " " + inputType.getName("") + "] = [" + potionOutput + " " + outputType.getName("") + "]";
+		ItemStack input = potionInputs.getFirst();
+		String inputName = PotionSubtypeInterpreter.INSTANCE.getStringName(input);
+		String outputName = PotionSubtypeInterpreter.INSTANCE.getStringName(potionOutput);
+		return ingredients + " + [" + input.getItem() + " " + inputName + "] = [" + potionOutput + " " + outputName + "]";
 	}
 }

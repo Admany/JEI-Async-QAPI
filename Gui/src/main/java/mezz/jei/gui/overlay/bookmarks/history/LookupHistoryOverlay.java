@@ -2,6 +2,7 @@ package mezz.jei.gui.overlay.bookmarks.history;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
@@ -54,40 +55,40 @@ public class LookupHistoryOverlay implements IRecipeFocusSource {
 	private int rows;
 
 	public LookupHistoryOverlay(
-		IIngredientManager ingredientManager,
-		IIngredientGridSource lookupHistory,
-		IInternalKeyMappings keyMappings,
-		IIngredientGridConfig historyListConfig,
-		IIngredientFilterConfig ingredientFilterConfig,
-		IClientConfig clientConfig,
-		HistoryDisplaySide ownerDisplaySide,
-		IClientToggleState toggleState,
-		IScreenHelper screenHelper,
-		IConnectionToServer serverConnection,
-		IColorHelper colorHelper
+			IIngredientManager ingredientManager,
+			IIngredientGridSource lookupHistory,
+			IInternalKeyMappings keyMappings,
+			IIngredientGridConfig historyListConfig,
+			IIngredientFilterConfig ingredientFilterConfig,
+			IClientConfig clientConfig,
+			HistoryDisplaySide ownerDisplaySide,
+			IClientToggleState toggleState,
+			IScreenHelper screenHelper,
+			IConnectionToServer serverConnection,
+			IColorHelper colorHelper
 	) {
 		this.clientConfig = clientConfig;
 		this.lookupHistory = lookupHistory;
 		this.contents = new IngredientGrid(
-			ingredientManager,
-			historyListConfig,
-			ingredientFilterConfig,
-			clientConfig,
-			toggleState,
-			serverConnection,
-			keyMappings,
-			colorHelper,
-			false
+				ingredientManager,
+				historyListConfig,
+				ingredientFilterConfig,
+				clientConfig,
+				toggleState,
+				serverConnection,
+				keyMappings,
+				colorHelper,
+				false
 		);
-		this.ownerDisplaySide = ownerDisplaySide;
 		this.ghostIngredientDragManager = new GhostIngredientDragManager(this.contents, screenHelper, ingredientManager, toggleState);
+		this.ownerDisplaySide = ownerDisplaySide;
 		lookupHistory.addSourceListChangedListener(this::updateLayout);
 	}
 
 	public boolean isListDisplayed() {
 		return clientConfig.isLookupHistoryEnabled() &&
-			isOnSide() &&
-			contents.hasRoom();
+				isOnSide() &&
+				contents.hasRoom();
 	}
 
 	public boolean isOnSide() {
@@ -114,8 +115,7 @@ public class LookupHistoryOverlay implements IRecipeFocusSource {
 		RenderSystem.defaultBlendFunc();
 		RenderSystem.setShader(GameRenderer::getPositionColorShader);
 		Tesselator tesselator = Tesselator.getInstance();
-		BufferBuilder builder = tesselator.getBuilder();
-		builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+		BufferBuilder builder = tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
 
 		float a = (float) (argbColor >> 24 & 255) / 255.0F;
 		float r = (float) (argbColor >> 16 & 255) / 255.0F;
@@ -137,13 +137,13 @@ public class LookupHistoryOverlay implements IRecipeFocusSource {
 		final float floatInterval = (availableWidth - dashWidth) / (float) dashCount;
 
 		for (float x = x1; x < x2; x += floatInterval) {
-			builder.vertex(pose, Mth.clamp(x + dashWidth, x1, x2), y, 0).color(r, g, b, a).endVertex();
-			builder.vertex(pose, Mth.clamp(x, x1, x2), y, 0).color(r, g, b, a).endVertex();
-			builder.vertex(pose, Mth.clamp(x, x1, x2), y + dashHeight, 0).color(r, g, b, a).endVertex();
-			builder.vertex(pose, Mth.clamp(x + dashWidth, x1, x2), y + dashHeight, 0).color(r, g, b, a).endVertex();
+			builder.addVertex(pose, Mth.clamp(x + dashWidth, x1, x2), y, 0).setColor(r, g, b, a);
+			builder.addVertex(pose, Mth.clamp(x, x1, x2), y, 0).setColor(r, g, b, a);
+			builder.addVertex(pose, Mth.clamp(x, x1, x2), y + dashHeight, 0).setColor(r, g, b, a);
+			builder.addVertex(pose, Mth.clamp(x + dashWidth, x1, x2), y + dashHeight, 0).setColor(r, g, b, a);
 		}
 
-		tesselator.end();
+		BufferUploader.drawWithShader(builder.buildOrThrow());
 		RenderSystem.disableBlend();
 	}
 
@@ -198,5 +198,4 @@ public class LookupHistoryOverlay implements IRecipeFocusSource {
 	public IDragHandler createDragHandler() {
 		return this.ghostIngredientDragManager.createDragHandler();
 	}
-
 }

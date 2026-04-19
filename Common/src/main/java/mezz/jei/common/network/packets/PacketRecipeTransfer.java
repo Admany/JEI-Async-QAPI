@@ -1,33 +1,61 @@
 package mezz.jei.common.network.packets;
 
-import mezz.jei.common.network.IPacketId;
-import mezz.jei.common.network.PacketIdServer;
+import mezz.jei.api.constants.ModIds;
 import mezz.jei.common.network.ServerPacketContext;
-import mezz.jei.common.network.ServerPacketData;
 import mezz.jei.common.transfer.BasicRecipeTransferHandlerServer;
 import mezz.jei.common.transfer.TransferOperation;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
-public class PacketRecipeTransfer extends PacketJei {
-	public final Collection<TransferOperation> transferOperations;
-	public final Collection<Slot> craftingSlots;
-	public final Collection<Slot> inventorySlots;
+public class PacketRecipeTransfer extends PlayToServerPacket<PacketRecipeTransfer> {
+	public static final CustomPacketPayload.Type<PacketRecipeTransfer> TYPE = new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(ModIds.JEI_ID, "recipe_transfer"));
+	public static final StreamCodec<RegistryFriendlyByteBuf, PacketRecipeTransfer> STREAM_CODEC = StreamCodec.composite(
+		TransferOperation.STREAM_CODEC.apply(ByteBufCodecs.list()),
+		p -> p.transferOperations,
+		ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list()),
+		p -> p.craftingSlots,
+		ByteBufCodecs.VAR_INT.apply(ByteBufCodecs.list()),
+		p -> p.inventorySlots,
+		ByteBufCodecs.BOOL,
+		p -> p.maxTransfer,
+		ByteBufCodecs.BOOL,
+		p -> p.requireCompleteSets,
+		PacketRecipeTransfer::new
+	);
+
+	public final List<TransferOperation> transferOperations;
+	public final List<Integer> craftingSlots;
+	public final List<Integer> inventorySlots;
 	private final boolean maxTransfer;
 	private final boolean requireCompleteSets;
 
+	public static PacketRecipeTransfer fromSlots(
+			List<TransferOperation> transferOperations,
+			List<Slot> craftingSlots,
+			List<Slot> inventorySlots,
+			boolean maxTransfer,
+			boolean requireCompleteSets
+	) {
+		return new PacketRecipeTransfer(
+				transferOperations,
+				craftingSlots.stream().map(s -> s.index).toList(),
+				inventorySlots.stream().map(s -> s.index).toList(),
+				maxTransfer,
+				requireCompleteSets
+		);
+	}
+
 	public PacketRecipeTransfer(
-		Collection<TransferOperation> transferOperations,
-		Collection<Slot> craftingSlots,
-		Collection<Slot> inventorySlots,
+		List<TransferOperation> transferOperations,
+		List<Integer> craftingSlots,
+		List<Integer> inventorySlots,
 		boolean maxTransfer,
 		boolean requireCompleteSets
 	) {
@@ -39,72 +67,25 @@ public class PacketRecipeTransfer extends PacketJei {
 	}
 
 	@Override
-	public IPacketId getPacketId() {
-		return PacketIdServer.RECIPE_TRANSFER;
+	public Type<PacketRecipeTransfer> type() {
+		return TYPE;
 	}
 
 	@Override
-	public void writePacketData(FriendlyByteBuf buf) {
-		buf.writeVarInt(transferOperations.size());
-		for (TransferOperation operation : transferOperations) {
-			operation.writePacketData(buf);
-		}
-
-		buf.writeVarInt(craftingSlots.size());
-		for (Slot craftingSlot : craftingSlots) {
-			buf.writeVarInt(craftingSlot.index);
-		}
-
-		buf.writeVarInt(inventorySlots.size());
-		for (Slot inventorySlot : inventorySlots) {
-			buf.writeVarInt(inventorySlot.index);
-		}
-
-		buf.writeBoolean(maxTransfer);
-		buf.writeBoolean(requireCompleteSets);
+	public StreamCodec<RegistryFriendlyByteBuf, PacketRecipeTransfer> streamCodec() {
+		return STREAM_CODEC;
 	}
 
-	public static CompletableFuture<Void> readPacketData(ServerPacketData data) {
-		ServerPacketContext context = data.context();
-		ServerPlayer player = context.player();
-		FriendlyByteBuf buf = data.buf();
-		AbstractContainerMenu container = player.containerMenu;
-
-		int transferOperationsSize = buf.readVarInt();
-		List<TransferOperation> transferOperations = new ArrayList<>();
-		for (int i = 0; i < transferOperationsSize; i++) {
-			TransferOperation transferOperation = TransferOperation.readPacketData(buf, container);
-			transferOperations.add(transferOperation);
-		}
-
-		int craftingSlotsSize = buf.readVarInt();
-		List<Slot> craftingSlots = new ArrayList<>();
-		for (int i = 0; i < craftingSlotsSize; i++) {
-			int slotIndex = buf.readVarInt();
-			Slot slot = container.getSlot(slotIndex);
-			craftingSlots.add(slot);
-		}
-
-		int inventorySlotsSize = buf.readVarInt();
-		List<Slot> inventorySlots = new ArrayList<>();
-		for (int i = 0; i < inventorySlotsSize; i++) {
-			int slotIndex = buf.readVarInt();
-			Slot slot = container.getSlot(slotIndex);
-			inventorySlots.add(slot);
-		}
-		boolean maxTransfer = buf.readBoolean();
-		boolean requireCompleteSets = buf.readBoolean();
-
-		MinecraftServer server = player.server;
-		return server.submit(() ->
-			BasicRecipeTransferHandlerServer.setItems(
-				player,
+	@Override
+	public void process(ServerPacketContext context) {
+		AbstractContainerMenu container = context.player().containerMenu;
+		BasicRecipeTransferHandlerServer.setItems(
+				context.player(),
 				transferOperations,
-				craftingSlots,
-				inventorySlots,
+				craftingSlots.stream().map(container::getSlot).toList(),
+				inventorySlots.stream().map(container::getSlot).toList(),
 				maxTransfer,
 				requireCompleteSets
-			)
 		);
 	}
 

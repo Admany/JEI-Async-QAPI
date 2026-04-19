@@ -11,29 +11,26 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class IngredientBlacklistInternal implements IIngredientManager.IIngredientListener {
-	private final Set<String> uidBlacklist = new HashSet<>();
+	private final Set<Object> uidBlacklist = new HashSet<>();
 	private WeakReference<IngredientVisibility> ingredientVisibilityRef = new WeakReference<>(null);
 
 	public <V> void addIngredientToBlacklist(ITypedIngredient<V> typedIngredient, IIngredientHelper<V> ingredientHelper) {
-		V ingredient = typedIngredient.getIngredient();
-		String uniqueName = ingredientHelper.getUniqueId(ingredient, UidContext.Ingredient);
-		if (uidBlacklist.add(uniqueName)) {
+		Object uid = ingredientHelper.getUid(typedIngredient, UidContext.Ingredient);
+		if (uidBlacklist.add(uid)) {
 			notifyListenersOfVisibilityChange(typedIngredient, false);
 		}
 	}
 
 	public <V> void removeIngredientFromBlacklist(ITypedIngredient<V> typedIngredient, IIngredientHelper<V> ingredientHelper) {
-		V ingredient = typedIngredient.getIngredient();
-		String uniqueName = ingredientHelper.getUniqueId(ingredient, UidContext.Ingredient);
-		if (uidBlacklist.remove(uniqueName)) {
+		Object uid = ingredientHelper.getUid(typedIngredient, UidContext.Ingredient);
+		if (uidBlacklist.remove(uid)) {
 			notifyListenersOfVisibilityChange(typedIngredient, true);
 		}
 	}
 
 	public <V> boolean isIngredientBlacklistedByApi(ITypedIngredient<V> typedIngredient, IIngredientHelper<V> ingredientHelper) {
-		V ingredient = typedIngredient.getIngredient();
-		String uid = ingredientHelper.getUniqueId(ingredient, UidContext.Ingredient);
-		String uidWild = ingredientHelper.getWildcardId(ingredient);
+		Object uid = ingredientHelper.getUid(typedIngredient, UidContext.Ingredient);
+		Object uidWild = ingredientHelper.getGroupingUid(typedIngredient);
 
 		if (uid.equals(uidWild)) {
 			return uidBlacklist.contains(uid);

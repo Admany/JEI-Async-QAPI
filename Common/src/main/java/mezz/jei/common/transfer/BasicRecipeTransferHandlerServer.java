@@ -7,7 +7,6 @@ import net.minecraft.world.item.ItemStack;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.annotation.Nonnull;
 import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -160,7 +159,6 @@ public final class BasicRecipeTransferHandlerServer {
 		return recipeSlotToRequired;
 	}
 
-	@Nonnull
 	private static Map<Slot, ItemStack> takeItemsFromInventory(
 		Player player,
 		Map<Slot, ItemStackWithSlotHint> recipeSlotToRequiredItemStack,
@@ -271,7 +269,7 @@ public final class BasicRecipeTransferHandlerServer {
 				resultItemStack = itemStack;
 				result.put(slot, resultItemStack);
 			} else {
-				assert ItemStack.isSameItemSameTags(resultItemStack, itemStack);
+				assert ItemStack.isSameItemSameComponents(resultItemStack, itemStack);
 				resultItemStack.grow(itemStack.getCount());
 			}
 			if (resultItemStack.getCount() == slot.getMaxStackSize(resultItemStack)) {
@@ -356,7 +354,7 @@ public final class BasicRecipeTransferHandlerServer {
 
 	private static boolean isValidAndMatches(Player player, Slot slot, ItemStack stack) {
 		ItemStack containedStack = slot.getItem();
-		return ItemStack.isSameItemSameTags(stack, containedStack) &&
+		return ItemStack.isSameItemSameComponents(stack, containedStack) &&
 			slot.allowModification(player);
 	}
 

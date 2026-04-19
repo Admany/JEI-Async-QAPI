@@ -3,7 +3,7 @@ package mezz.jei.api.gui.builder;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.ItemLike;
@@ -60,7 +60,7 @@ public interface IIngredientAcceptor<THIS extends IIngredientAcceptor<THIS>> ext
 	/**
 	 * Add one typed ingredient.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	default <I> THIS addTypedIngredient(ITypedIngredient<I> typedIngredient) {
 		return addIngredient(typedIngredient.getType(), typedIngredient.getIngredient());
@@ -71,7 +71,7 @@ public interface IIngredientAcceptor<THIS extends IIngredientAcceptor<THIS>> ext
 	 *
 	 * @param ingredients a non-null list of ingredients for the slot
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	THIS addTypedIngredients(List<ITypedIngredient<?>> ingredients);
 
@@ -81,7 +81,7 @@ public interface IIngredientAcceptor<THIS extends IIngredientAcceptor<THIS>> ext
 	 *
 	 * @param ingredients a non-null list of optional ingredients for the slot
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	THIS addOptionalTypedIngredients(List<Optional<ITypedIngredient<?>>> ingredients);
 
@@ -106,7 +106,7 @@ public interface IIngredientAcceptor<THIS extends IIngredientAcceptor<THIS>> ext
 	/**
 	 * Convenience function to add one {@link ItemLike}.
 	 *
-	 * @since 15.19.4
+	 * @since 19.18.1
 	 */
 	default IIngredientConsumer addItemLike(ItemLike itemLike) {
 		return addItemStack(itemLike.asItem().getDefaultInstance());
@@ -118,8 +118,8 @@ public interface IIngredientAcceptor<THIS extends IIngredientAcceptor<THIS>> ext
 	 * To add multiple Fluid ingredients, you can call this multiple times.
 	 *
 	 * @see #addFluidStack(Fluid, long) to add a Fluid with an amount.
-	 * @see #addFluidStack(Fluid, long, CompoundTag) to add a Fluid with a {@link CompoundTag}.
-	 * @since 15.19.4
+	 * @see #addFluidStack(Fluid, long, DataComponentPatch) to add a Fluid with a {@link DataComponentPatch}.
+	 * @since 19.18.1
 	 */
 	THIS addFluidStack(Fluid fluid);
 
@@ -128,18 +128,20 @@ public interface IIngredientAcceptor<THIS extends IIngredientAcceptor<THIS>> ext
 	 *
 	 * To add multiple Fluid ingredients, you can call this multiple times.
 	 *
-	 * @see #addFluidStack(Fluid, long, CompoundTag) to add a Fluid with a {@link CompoundTag}.
+	 * @see #addFluidStack(Fluid, long) to add a Fluid with the default amount.
+	 * @see #addFluidStack(Fluid, long, DataComponentPatch) to add a Fluid with a {@link DataComponentPatch}.
 	 * @since 11.1.0
 	 */
 	THIS addFluidStack(Fluid fluid, long amount);
 
 	/**
-	 * Convenience helper to add one Fluid ingredient with a {@link CompoundTag}.
+	 * Convenience helper to add one Fluid ingredient with a {@link DataComponentPatch}.
 	 *
 	 * To add multiple Fluid ingredients, you can call this multiple times.
 	 *
-	 * @see #addFluidStack(Fluid, long) to add a Fluid without a {@link CompoundTag}.
-	 * @since 11.1.0
+	 * @see #addFluidStack(Fluid, long) to add a Fluid with the default amount.
+	 * @see #addFluidStack(Fluid, long) to add a Fluid without a {@link DataComponentPatch}.
+	 * @since 18.0.0
 	 */
-	THIS addFluidStack(Fluid fluid, long amount, CompoundTag tag);
+	THIS addFluidStack(Fluid fluid, long amount, DataComponentPatch component);
 }

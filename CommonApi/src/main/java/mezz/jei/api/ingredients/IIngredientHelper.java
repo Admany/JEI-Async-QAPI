@@ -18,7 +18,7 @@ import java.util.stream.Stream;
  * An ingredient is anything used in a recipe, like ItemStacks and FluidStacks.
  *
  * If you have a new type of ingredient to add to JEI, you will have to implement this in order to use
- * {@link IModIngredientRegistration#register(IIngredientType, Collection, IIngredientHelper, IIngredientRenderer)}
+ * {@link IModIngredientRegistration#register}
  */
 public interface IIngredientHelper<V> {
 	/**
@@ -34,8 +34,60 @@ public interface IIngredientHelper<V> {
 	/**
 	 * Unique ID for use in comparing, blacklisting, and looking up ingredients.
 	 * @since 7.3.0
+	 *
+	 * @deprecated use {@link #getUid(Object, UidContext)} instead
 	 */
+	@SuppressWarnings("DeprecatedIsStillUsed")
+	@Deprecated(since = "19.9.0", forRemoval = true)
 	String getUniqueId(V ingredient, UidContext context);
+
+	/**
+	 * Unique ID for use in comparing and looking up ingredients.
+	 *
+	 * Returns an {@link Object} so that UID creation can be optimized.
+	 * Make sure the returned value implements {@link Object#equals} and {@link Object#hashCode}.
+	 *
+	 * Replaces {@link #getUniqueId(Object, UidContext)}.
+	 *
+	 * @since 19.9.0
+	 */
+	default Object getUid(V ingredient, UidContext context) {
+		return getUniqueId(ingredient, context);
+	}
+
+	/**
+	 * Unique ID for use in comparing and looking up ingredients.
+	 *
+	 * Returns an {@link Object} so that UID creation can be optimized.
+	 * Make sure the returned value implements {@link Object#equals} and {@link Object#hashCode}.
+	 *
+	 * Replaces {@link #getUniqueId(Object, UidContext)}.
+	 *
+	 * @since 19.19.4
+	 */
+	default Object getUid(ITypedIngredient<V> typedIngredient, UidContext context) {
+		return getUid(typedIngredient.getIngredient(), context);
+	}
+
+	/**
+	 * Unique ID for use in grouping ingredients together.
+	 * This is used for hiding groups of ingredients together at once.
+	 *
+	 * @since 19.13.0
+	 */
+	default Object getGroupingUid(V ingredient) {
+		return getWildcardId(ingredient);
+	}
+
+	/**
+	 * Unique ID for use in grouping ingredients together.
+	 * This is used for hiding groups of ingredients together at once.
+	 *
+	 * @since 19.19.5
+	 */
+	default Object getGroupingUid(ITypedIngredient<V> typedIngredient) {
+		return getGroupingUid(typedIngredient.getIngredient());
+	}
 
 	/**
 	 * Return true if the given ingredient can have subtypes.
@@ -43,7 +95,7 @@ public interface IIngredientHelper<V> {
 	 * <p>
 	 * This is used as an optimization to skip some processing for ingredients that never have subtypes.
 	 *
-	 * @since 15.6.0
+	 * @since 19.3.0
 	 */
 	default boolean hasSubtypes(V ingredient) {
 		return getIngredientType() instanceof IIngredientTypeWithSubtypes<?,?>;
@@ -53,7 +105,11 @@ public interface IIngredientHelper<V> {
 	 * Wildcard ID for use in comparing, blacklisting, and looking up ingredients.
 	 * For an example, ItemStack's wildcardId does not include NBT.
 	 * For ingredients which do not have a wildcardId, just return the uniqueId here.
+	 *
+	 * @deprecated use {@link #getGroupingUid} instead
 	 */
+	@SuppressWarnings("DeprecatedIsStillUsed")
+	@Deprecated(since = "19.13.0", forRemoval = true)
 	default String getWildcardId(V ingredient) {
 		return getUniqueId(ingredient, UidContext.Ingredient);
 	}
@@ -72,7 +128,7 @@ public interface IIngredientHelper<V> {
 	 *
 	 * Returns -1 if this type of ingredient can't be counted.
 	 *
-	 * @since 15.7.0
+	 * @since 19.4.0
 	 */
 	default long getAmount(V ingredient){
 		return -1;
@@ -85,7 +141,7 @@ public interface IIngredientHelper<V> {
 	 * Does not mutate the given ingredient.
 	 * If this ingredient can't store an amount, this just returns a copy.
 	 *
-	 * @since 15.7.0
+	 * @since 19.4.0
 	 */
 	default V copyWithAmount(V ingredient, long amount) {
 		return copyIngredient(ingredient);
@@ -173,11 +229,22 @@ public interface IIngredientHelper<V> {
 	 *
 	 * @see Tags#HIDDEN_FROM_RECIPE_VIEWERS
 	 *
-	 * @since 15.6.0
+	 * @since 19.3.0
 	 */
 	default boolean isHiddenFromRecipeViewersByTags(V ingredient) {
 		return getTagStream(ingredient)
 			.anyMatch(Tags.HIDDEN_FROM_RECIPE_VIEWERS::equals);
+	}
+
+	/**
+	 * Return true if the given ingredient is hidden from recipe viewers by its tags.
+	 *
+	 * @see Tags#HIDDEN_FROM_RECIPE_VIEWERS
+	 *
+	 * @since 19.19.5
+	 */
+	default boolean isHiddenFromRecipeViewersByTags(ITypedIngredient<V> ingredient) {
+		return isHiddenFromRecipeViewersByTags(ingredient.getIngredient());
 	}
 
 	/**
@@ -189,7 +256,7 @@ public interface IIngredientHelper<V> {
 	/**
 	 * If these ingredients represent everything from a single tag, returns that tag.
 	 *
-	 * @since 15.8.4
+	 * @since 19.5.4
 	 */
 	default Optional<TagKey<?>> getTagKeyEquivalent(Collection<V> ingredients) {
 		return Optional.empty();
@@ -202,7 +269,7 @@ public interface IIngredientHelper<V> {
 	 * @since 9.3.0
 	 * @deprecated use {@link #getTagKeyEquivalent}
 	 */
-	@Deprecated(since = "15.8.5", forRemoval = true)
+	@Deprecated(since = "19.5.5", forRemoval = true)
 	default Optional<ResourceLocation> getTagEquivalent(Collection<V> ingredients) {
 		return getTagKeyEquivalent(ingredients)
 			.map(TagKey::location);

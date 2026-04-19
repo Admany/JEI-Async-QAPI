@@ -10,6 +10,6 @@ import java.util.List;
  *
  * @see IIngredientRenderer#renderBatch(GuiGraphics, List)
  *
- * @since 15.16.0
+ * @since 19.14.0
  */
 public record BatchRenderElement<T>(T ingredient, int x, int y) {}

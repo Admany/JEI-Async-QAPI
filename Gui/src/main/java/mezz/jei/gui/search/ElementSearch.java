@@ -4,7 +4,6 @@ import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.common.config.DebugConfig;
 import mezz.jei.core.search.CombinedSearchables;
 import mezz.jei.core.search.ISearchStorage;
 import mezz.jei.core.search.ISearchable;
@@ -15,21 +14,22 @@ import mezz.jei.gui.ingredients.IListElement;
 import mezz.jei.gui.ingredients.IListElementInfo;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class ElementSearch implements IElementSearch {
 	private static final Logger LOGGER = LogManager.getLogger();
 
 	private final Map<PrefixInfo<IListElementInfo<?>, IListElement<?>>, PrefixedSearchable<IListElementInfo<?>, IListElement<?>>> prefixedSearchables = new IdentityHashMap<>();
 	private final CombinedSearchables<IListElement<?>> combinedSearchables = new CombinedSearchables<>();
-	private final Map<Object, IListElement<?>> allElements = new ConcurrentHashMap<>();
+	private final Map<Object, IListElement<?>> allElements = new HashMap<>();
 
 	public ElementSearch(ElementPrefixParser elementPrefixParser) {
 		for (PrefixInfo<IListElementInfo<?>, IListElement<?>> prefixInfo : elementPrefixParser.allPrefixInfos()) {
@@ -68,6 +68,7 @@ public class ElementSearch implements IElementSearch {
 		IListElement<T> element = info.getElement();
 		Object uid = getUid(element.getTypedIngredient(), ingredientManager);
 		this.allElements.put(uid, element);
+
 		for (PrefixedSearchable<IListElementInfo<?>, IListElement<?>> prefixedSearchable : this.prefixedSearchables.values()) {
 			SearchMode searchMode = prefixedSearchable.getMode();
 			if (searchMode != SearchMode.DISABLED) {
@@ -82,63 +83,90 @@ public class ElementSearch implements IElementSearch {
 
 	private static <T> Object getUid(ITypedIngredient<T> typedIngredient, IIngredientManager ingredientManager) {
 		IIngredientHelper<T> ingredientHelper = ingredientManager.getIngredientHelper(typedIngredient.getType());
-		return ingredientHelper.getUniqueId(typedIngredient.getIngredient(), UidContext.Ingredient);
+		return ingredientHelper.getUid(typedIngredient.getIngredient(), UidContext.Ingredient);
 	}
 
 	@Override
 	public void addAll(Collection<IListElementInfo<?>> infos, IIngredientManager ingredientManager) {
-		if (DebugConfig.isParallelSearchEnabled() && infos.size() >= 100) {
-			addAllParallel(infos, ingredientManager);
-		} else {
-			addAllSequential(infos, ingredientManager);
-		}
+		addAll(infos, ingredientManager, null);
 	}
 
-	private void addAllSequential(Collection<IListElementInfo<?>> infos, IIngredientManager ingredientManager) {
+	public void addAll(Collection<IListElementInfo<?>> infos, IIngredientManager ingredientManager, @Nullable SearchStringCache cache) {
+		// Build UID map for runtime identity
 		for (IListElementInfo<?> info : infos) {
 			IListElement<?> element = info.getElement();
 			Object uid = getUid(info.getTypedIngredient(), ingredientManager);
 			this.allElements.put(uid, element);
 		}
 
-		for (PrefixedSearchable<IListElementInfo<?>, IListElement<?>> prefixedSearchable : this.prefixedSearchables.values()) {
-			if (prefixedSearchable.getMode() != SearchMode.DISABLED) {
-				ISearchStorage<IListElement<?>> storage = prefixedSearchable.getSearchStorage();
-				for (IListElementInfo<?> info : infos) {
-					prefixedSearchable.getStrings(info).forEach(s -> storage.put(s, info.getElement()));
+		boolean useCache = cache != null && cache.isCacheAvailable();
+		boolean collectForCache = cache != null && !cache.isCacheAvailable();
+		if (collectForCache) {
+			cache.startCollecting();
+		}
+
+		for (Map.Entry<PrefixInfo<IListElementInfo<?>, IListElement<?>>, PrefixedSearchable<IListElementInfo<?>, IListElement<?>>> entry : this.prefixedSearchables.entrySet()) {
+			PrefixInfo<IListElementInfo<?>, IListElement<?>> prefixInfo = entry.getKey();
+			PrefixedSearchable<IListElementInfo<?>, IListElement<?>> prefixedSearchable = entry.getValue();
+			SearchMode searchMode = prefixedSearchable.getMode();
+			if (searchMode == SearchMode.DISABLED) {
+				continue;
+			}
+
+			char prefix = prefixInfo.getPrefix();
+			ISearchStorage<IListElement<?>> storage = prefixedSearchable.getSearchStorage();
+			int cacheHits = 0;
+			int cacheMisses = 0;
+
+			// Use list index as cache key - stable across JVM runs
+			// (cache key hash already validates the ingredient list is identical)
+			int index = 0;
+			for (IListElementInfo<?> info : infos) {
+				String cacheId = String.valueOf(index++);
+				Collection<String> strings;
+
+				if (useCache) {
+					List<String> cached = cache.getCachedStrings(cacheId, prefix);
+					if (cached != null) {
+						strings = cached;
+						cacheHits++;
+					} else {
+						strings = prefixedSearchable.getStrings(info);
+						cacheMisses++;
+					}
+				} else {
+					strings = prefixedSearchable.getStrings(info);
+				}
+
+				if (collectForCache) {
+					cache.recordStrings(cacheId, prefix, strings);
+				}
+
+				for (String string : strings) {
+					storage.put(string, info.getElement());
 				}
 			}
+
+			if (useCache) {
+				LOGGER.info("ElementSearch {}: cache hits={}, misses={}", prefixInfo, cacheHits, cacheMisses);
+			}
+		}
+
+		if (collectForCache) {
+			cache.saveAsync();
 		}
 	}
 
-	private void addAllParallel(Collection<IListElementInfo<?>> infos, IIngredientManager ingredientManager) {
-		infos.parallelStream().forEach(info -> {
-			Object uid = getUid(info.getTypedIngredient(), ingredientManager);
-			this.allElements.put(uid, info.getElement());
-		});
-
-		this.prefixedSearchables.values().parallelStream()
-			.filter(p -> p.getMode() != SearchMode.DISABLED)
-			.forEach(prefixedSearchable -> {
-				ISearchStorage<IListElement<?>> storage = prefixedSearchable.getSearchStorage();
-				for (IListElementInfo<?> info : infos) {
-					prefixedSearchable.getStrings(info).forEach(s -> storage.put(s, info.getElement()));
-				}
-			});
-	}
-
 	@Override
-	public <T> Optional<IListElement<T>> findElement(ITypedIngredient<T> ingredient, IIngredientHelper<T> ingredientHelper) {
-		Object ingredientUid = ingredientHelper.getUniqueId(ingredient.getIngredient(), UidContext.Ingredient);
-
+	public @Nullable <T> IListElement<T> findElement(ITypedIngredient<T> ingredient, IIngredientHelper<T> ingredientHelper) {
+		Object ingredientUid = ingredientHelper.getUid(ingredient.getIngredient(), UidContext.Ingredient);
 		IListElement<?> listElement = allElements.get(ingredientUid);
 		if (listElement != null && listElement.getTypedIngredient().getType().equals(ingredient.getType())) {
 			@SuppressWarnings("unchecked")
 			IListElement<T> cast = (IListElement<T>) listElement;
-			return Optional.of(cast);
+			return cast;
 		}
-
-		return Optional.empty();
+		return null;
 	}
 
 	@Override

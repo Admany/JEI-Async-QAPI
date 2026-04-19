@@ -2,6 +2,7 @@ package mezz.jei.gui.recipes;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
+import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
@@ -13,7 +14,7 @@ import java.util.Comparator;
 import java.util.List;
 
 public class RecipeSortUtil {
-	private static final Comparator<RecipeLayoutWithButtons<?>> CRAFTABLE_COMPARATOR = createCraftableComparator();
+	private static final Comparator<IRecipeLayoutWithButtons<?>> COMPARATOR = createComparator();
 
 	public static List<IRecipeCategory<?>> sortRecipeCategories(
 		List<IRecipeCategory<?>> recipeCategories,
@@ -41,23 +42,21 @@ public class RecipeSortUtil {
 			.toList();
 	}
 
-	public static Comparator<RecipeLayoutWithButtons<?>> getCraftableComparator() {
-		return CRAFTABLE_COMPARATOR;
+	public static Comparator<IRecipeLayoutWithButtons<?>> getComparator() {
+		return COMPARATOR;
 	}
 
-	private static Comparator<RecipeLayoutWithButtons<?>> createCraftableComparator() {
+	private static Comparator<IRecipeLayoutWithButtons<?>> createComparator() {
 		return Comparator.comparingInt(r -> {
-			IRecipeLayoutDrawable<?> recipeLayout = r.recipeLayout();
-			List<IRecipeSlotView> inputSlotViews = recipeLayout.getRecipeSlotsView()
-				.getSlotViews(RecipeIngredientRole.INPUT);
+			IRecipeLayoutDrawable<?> recipeLayout = r.getRecipeLayout();
 
-			RecipeTransferButton transferButton = r.transferButton();
-			int missingCount = transferButton.getMissingCountHint();
+			int missingCount = r.getMissingCountHint();
 			if (missingCount == -1) {
 				return 0;
 			}
 
-			int ingredientCount = ingredientCount(inputSlotViews);
+			IRecipeSlotsView recipeSlotsView = recipeLayout.getRecipeSlotsView();
+			int ingredientCount = inputCount(recipeSlotsView);
 			if (ingredientCount == 0) {
 				return 0;
 			}
@@ -68,10 +67,10 @@ public class RecipeSortUtil {
 		});
 	}
 
-	private static int ingredientCount(List<IRecipeSlotView> inputSlotViews) {
+	private static int inputCount(IRecipeSlotsView recipeSlotsView) {
 		int count = 0;
-		for (IRecipeSlotView i : inputSlotViews) {
-			if (!i.isEmpty()) {
+		for (IRecipeSlotView i : recipeSlotsView.getSlotViews()) {
+			if (i.getRole() == RecipeIngredientRole.INPUT && !i.isEmpty()) {
 				count++;
 			}
 		}

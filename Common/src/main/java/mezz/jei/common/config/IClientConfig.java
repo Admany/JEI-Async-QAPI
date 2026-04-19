@@ -26,7 +26,7 @@ public interface IClientConfig {
 
 	GiveMode getGiveMode();
 
-	boolean isShowHiddenItemsEnabled();
+	boolean getShowHiddenIngredients();
 
 	List<BookmarkTooltipFeature> getBookmarkTooltipFeatures();
 
@@ -48,6 +48,8 @@ public interface IClientConfig {
 
 	void addLookupHistoryDisplaySideListener(IConfigListener<HistoryDisplaySide> listener);
 
+	boolean isIngredientsSummaryEnabled();
+
 	int getDragDelayMs();
 
 	int getSmoothScrollRate();
@@ -64,7 +66,7 @@ public interface IClientConfig {
 
 	boolean isTagContentTooltipEnabled();
 
-	boolean isHideSingleIngredientTagsEnabled();
+	boolean getHideSingleTagContentTooltipEnabled();
 
 	boolean isShowTagRecipesEnabled();
 

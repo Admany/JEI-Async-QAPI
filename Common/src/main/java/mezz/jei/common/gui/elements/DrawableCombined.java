@@ -16,7 +16,7 @@ public class DrawableCombined implements IDrawableAnimated {
 	}
 
 	public DrawableCombined(List<IDrawable> drawables) {
-		IDrawable first = drawables.get(0);
+		IDrawable first = drawables.getFirst();
 		this.width = first.getWidth();
 		this.height = first.getHeight();
 		for (int i = 1; i < drawables.size(); i++) {

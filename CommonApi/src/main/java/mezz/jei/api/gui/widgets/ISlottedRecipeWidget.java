@@ -11,7 +11,7 @@ import java.util.Optional;
  *
  * Add one to a recipe category by using {@link IRecipeExtrasBuilder#addSlottedWidget(ISlottedRecipeWidget, List)}
  *
- * @since 15.10.0
+ * @since 19.7.0
  */
 public interface ISlottedRecipeWidget extends IRecipeWidget {
 	/**
@@ -19,7 +19,7 @@ public interface ISlottedRecipeWidget extends IRecipeWidget {
 	 * @param mouseY the Y position of the mouse, relative to its parent element.
 	 *
 	 * @return the slot currently under the mouse, if any
-	 * @since 15.10.0
+	 * @since 19.7.0
 	 */
 	Optional<RecipeSlotUnderMouse> getSlotUnderMouse(double mouseX, double mouseY);
 }

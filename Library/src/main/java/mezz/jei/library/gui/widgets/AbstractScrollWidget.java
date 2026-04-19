@@ -130,7 +130,7 @@ public abstract class AbstractScrollWidget implements IRecipeWidget, IJeiInputHa
 	}
 
 	@Override
-	public final boolean handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaY) {
+	public final boolean handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
 		if (getHiddenAmount() > 0) {
 			scrollOffsetY -= calculateScrollAmount(scrollDeltaY);
 			scrollOffsetY = Mth.clamp(scrollOffsetY, 0.0F, 1.0F);

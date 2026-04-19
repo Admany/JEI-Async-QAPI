@@ -1,8 +1,8 @@
 package mezz.jei.common.config;
 
-import mezz.jei.common.util.HorizontalAlignment;
+import mezz.jei.api.gui.placement.HorizontalAlignment;
+import mezz.jei.api.gui.placement.VerticalAlignment;
 import mezz.jei.common.util.NavigationVisibility;
-import mezz.jei.common.util.VerticalAlignment;
 import mezz.jei.common.config.file.IConfigCategoryBuilder;
 import mezz.jei.common.config.file.IConfigSchemaBuilder;
 
@@ -13,7 +13,7 @@ public class IngredientGridConfig implements IIngredientGridConfig {
 	private static final int defaultNumRows = 16;
 	private static final int largestNumRows = 100;
 
-	private static final int minNumColumns = 4;
+	private static final int minNumColumns = 2;
 	private static final int defaultNumColumns = 9;
 	private static final int largestNumColumns = 100;
 
@@ -31,39 +31,21 @@ public class IngredientGridConfig implements IIngredientGridConfig {
 	public IngredientGridConfig(String categoryName, IConfigSchemaBuilder builder, HorizontalAlignment defaultHorizontalAlignment) {
 		IConfigCategoryBuilder category = builder.addCategory(categoryName);
 		maxRows = category.addInteger(
-			"MaxRows",
+			"maxRows",
 			defaultNumRows,
 			minNumRows,
-			largestNumRows,
-			"Max number of rows shown."
+			largestNumRows
 		);
 		maxColumns = category.addInteger(
-			"MaxColumns",
+			"maxColumns",
 			defaultNumColumns,
 			minNumColumns,
-			largestNumColumns,
-			"Max number of columns shown."
+			largestNumColumns
 		);
-		horizontalAlignment = category.addEnum(
-			"HorizontalAlignment",
-			defaultHorizontalAlignment,
-			"Horizontal alignment of the ingredient grid inside the available area."
-		);
-		verticalAlignment = category.addEnum(
-			"VerticalAlignment",
-			defaultVerticalAlignment,
-			"Vertical alignment of the ingredient grid inside the available area."
-		);
-		buttonNavigationVisibility = category.addEnum(
-			"ButtonNavigationVisibility",
-			defaultButtonNavigationVisibility,
-			"Visibility of the top page buttons. Use AUTO_HIDE to only show it when there are multiple pages."
-		);
-		drawBackground = category.addBoolean(
-			"DrawBackground",
-			defaultDrawBackground,
-			"Enable this to draw a background texture behind the GUI."
-		);
+		horizontalAlignment = category.addEnum("horizontalAlignment", defaultHorizontalAlignment);
+		verticalAlignment = category.addEnum("verticalAlignment", defaultVerticalAlignment);
+		buttonNavigationVisibility = category.addEnum("buttonNavigationVisibility", defaultButtonNavigationVisibility);
+		drawBackground = category.addBoolean("drawBackground", defaultDrawBackground);
 	}
 
 	@Override

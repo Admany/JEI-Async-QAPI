@@ -1,24 +1,23 @@
 package mezz.jei.gui.config;
 
-import mezz.jei.api.constants.VanillaTypes;
-import mezz.jei.api.ingredients.IIngredientHelper;
-import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.recipe.IFocusFactory;
+import com.google.gson.JsonElement;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.JsonOps;
+import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.common.config.file.serializers.TypedIngredientSerializer;
+import mezz.jei.common.config.file.JsonArrayFileHelper;
 import mezz.jei.common.util.DeduplicatingRunner;
 import mezz.jei.common.util.ServerConfigPathUtil;
 import mezz.jei.gui.bookmarks.IBookmark;
-import mezz.jei.gui.bookmarks.IngredientBookmark;
-import mezz.jei.gui.bookmarks.RecipeBookmark;
-import mezz.jei.gui.config.file.serializers.RecipeBookmarkSerializer;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.resources.RegistryOps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Unmodifiable;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,11 +26,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static mezz.jei.gui.config.BookmarkConfig.*;
-
 public class LookupHistoryJsonConfig implements ILookupHistoryConfig {
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static final Duration SAVE_DELAY_TIME = Duration.ofSeconds(5);
+	private static final int VERSION = 1;
 
 	private final Path jeiConfigurationDir;
 	private final DeduplicatingRunner delayedSave = new DeduplicatingRunner(SAVE_DELAY_TIME);
@@ -42,10 +40,10 @@ public class LookupHistoryJsonConfig implements ILookupHistoryConfig {
 				try {
 					Files.createDirectories(configPath);
 				} catch (IOException e) {
-					LOGGER.error("Unable to create lookup history config folder: {}", configPath);
+					LOGGER.error("Unable to create lookup history config folder: {}", configPath, e);
 					return Optional.empty();
 				}
-				Path path = configPath.resolve("lookupHistory.ini");
+				Path path = configPath.resolve("lookupHistory.json");
 				return Optional.of(path);
 			});
 	}
@@ -54,48 +52,45 @@ public class LookupHistoryJsonConfig implements ILookupHistoryConfig {
 		this.jeiConfigurationDir = jeiConfigurationDir;
 	}
 
+	private RegistryOps<JsonElement> getRegistryOps(RegistryAccess registryAccess) {
+		return registryAccess.createSerializationContext(JsonOps.INSTANCE);
+	}
+
 	@Override
 	public void save(
 		IRecipeManager recipeManager,
 		IIngredientManager ingredientManager,
-		IFocusFactory focusFactory,
-		List<IBookmark> bookmarks
+		RegistryAccess registryAccess,
+		ICodecHelper codecHelper,
+		List<IBookmark> bookmarks,
+		Codec<IBookmark> bookmarkCodec
 	) {
 		getPath(jeiConfigurationDir)
 			.ifPresent(path -> {
 				delayedSave.run(() -> {
-					save(path, recipeManager, ingredientManager, focusFactory, bookmarks);
+					save(path, bookmarkCodec, registryAccess, bookmarks);
 				});
 			});
 	}
 
-	private void save(
-		Path path,
-		IRecipeManager recipeManager,
-		IIngredientManager ingredientManager,
-		IFocusFactory focusFactory,
-		List<IBookmark> bookmarks) {
-		List<String> strings = new ArrayList<>();
-		TypedIngredientSerializer ingredientSerializer = new TypedIngredientSerializer(ingredientManager);
-		RecipeBookmarkSerializer recipeBookmarkSerializer = new RecipeBookmarkSerializer(recipeManager, focusFactory, ingredientSerializer);
-		for (IBookmark bookmark : bookmarks) {
-			if (bookmark instanceof IngredientBookmark<?> ingredientBookmark) {
-				ITypedIngredient<?> typedIngredient = ingredientBookmark.getIngredient();
-				if (typedIngredient.getIngredient() instanceof ItemStack stack) {
-					strings.add(MARKER_STACK + stack.save(new CompoundTag()));
-				} else {
-					strings.add(MARKER_INGREDIENT + ingredientSerializer.serialize(typedIngredient));
-				}
-			} else if (bookmark instanceof RecipeBookmark<?, ?> recipeBookmark) {
-				strings.add(MARKER_RECIPE + recipeBookmarkSerializer.serialize(recipeBookmark));
-			} else {
-				LOGGER.error("Unknown IBookmark type, unable to save it: {}", bookmark.getClass());
-			}
-		}
+	private void save(Path path, Codec<IBookmark> bookmarkCodec, RegistryAccess registryAccess, List<IBookmark> bookmarks) {
+		RegistryOps<JsonElement> registryOps = getRegistryOps(registryAccess);
 
-		try {
-			Files.write(path, strings);
-			LOGGER.debug("Saved lookup history config to file {}", path);
+		try (BufferedWriter out = Files.newBufferedWriter(path)) {
+			JsonArrayFileHelper.write(
+				out,
+				VERSION,
+				bookmarks,
+				bookmarkCodec,
+				registryOps,
+				error -> {
+					LOGGER.error("Encountered an error when saving the lookup history config to file {}\n{}", path, error);
+				},
+				(element, exception) -> {
+					LOGGER.error("Encountered an exception when saving the lookup history config to file {}\n{}", path, element, exception);
+				}
+			);
+			LOGGER.debug("Saved lookup history config to file: {}", path);
 		} catch (IOException e) {
 			LOGGER.error("Failed to save lookup history config to file {}", path, e);
 		}
@@ -105,16 +100,21 @@ public class LookupHistoryJsonConfig implements ILookupHistoryConfig {
 	public List<IBookmark> load(
 		IRecipeManager recipeManager,
 		IIngredientManager ingredientManager,
-		IFocusFactory focusFactory
+		RegistryAccess registryAccess,
+		ICodecHelper codecHelper,
+		Codec<IBookmark> bookmarkCodec
 	) {
-		return loadBookmarks(ingredientManager, recipeManager, focusFactory);
+		RegistryOps<JsonElement> registryOps = getRegistryOps(registryAccess);
+		return loadJsonBookmarks(ingredientManager, recipeManager, registryOps, codecHelper, bookmarkCodec);
 	}
 
 	@Unmodifiable
-	private List<IBookmark> loadBookmarks(
+	private List<IBookmark> loadJsonBookmarks(
 		IIngredientManager ingredientManager,
 		IRecipeManager recipeManager,
-		IFocusFactory focusFactory
+		RegistryOps<JsonElement> registryOps,
+		ICodecHelper codecHelper,
+		Codec<IBookmark> bookmarkCodec
 	) {
 		return getPath(jeiConfigurationDir)
 			.<List<IBookmark>>map(path -> {
@@ -122,42 +122,29 @@ public class LookupHistoryJsonConfig implements ILookupHistoryConfig {
 					return List.of();
 				}
 
-				List<String> lines;
-				try {
-					lines = Files.readAllLines(path);
-				} catch (IOException e) {
-					LOGGER.error("Encountered an exception when loading the lookup history config from file {}\n{}", path, e);
-					return List.of();
-				}
+				List<IBookmark> bookmarks;
 
-				TypedIngredientSerializer ingredientSerializer = new TypedIngredientSerializer(ingredientManager);
-				RecipeBookmarkSerializer recipeBookmarkSerializer = new RecipeBookmarkSerializer(recipeManager, focusFactory, ingredientSerializer);
-
-				IIngredientHelper<ItemStack> itemStackHelper = ingredientManager.getIngredientHelper(VanillaTypes.ITEM_STACK);
-				List<IBookmark> bookmarks = new ArrayList<>();
-				for (String line : lines) {
-					IBookmark bookmark = null;
-					if (line.startsWith(MARKER_STACK)) {
-						String itemStackAsJson = line.substring(MARKER_STACK.length());
-						bookmark = loadItemStackBookmark(itemStackHelper, ingredientManager, itemStackAsJson);
-					} else if (line.startsWith(MARKER_INGREDIENT)) {
-						String serializedIngredient = line.substring(MARKER_INGREDIENT.length());
-						bookmark = loadIngredientBookmark(ingredientSerializer, ingredientManager, serializedIngredient);
-					} else if (line.startsWith(MARKER_RECIPE)) {
-						String serializedRecipe = line.substring(MARKER_RECIPE.length());
-						bookmark = loadRecipeBookmark(recipeBookmarkSerializer, serializedRecipe);
-					} else {
-						LOGGER.error("Failed to load unknown bookmark type:\n{}", line);
-					}
-					if (bookmark != null) {
-						bookmarks.add(bookmark);
-					}
+				try (BufferedReader reader = Files.newBufferedReader(path)) {
+					bookmarks = JsonArrayFileHelper.read(
+						reader,
+						VERSION,
+						bookmarkCodec,
+						registryOps,
+						(element, error) -> {
+							LOGGER.error("Encountered an error when loading the lookup history config from file {}\n{}\n{}", path, element, error);
+						},
+						(element, exception) -> {
+							LOGGER.error("Encountered an exception when loading the lookup history config from file {}\n{}", path, element, exception);
+						}
+					);
+					LOGGER.debug("Loaded lookup history config from file: {}", path);
+				} catch (RuntimeException | IOException e) {
+					LOGGER.error("Failed to load lookup history from file {}", path, e);
+					bookmarks = new ArrayList<>();
 				}
 
 				return bookmarks;
 			})
 			.orElseGet(List::of);
 	}
-
-
 }

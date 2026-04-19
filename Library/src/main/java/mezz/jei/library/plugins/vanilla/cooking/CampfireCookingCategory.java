@@ -7,6 +7,7 @@ import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.library.util.RecipeUtil;
 import net.minecraft.world.item.crafting.CampfireCookingRecipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.level.block.Blocks;
 
 public class CampfireCookingCategory extends AbstractCookingCategory<CampfireCookingRecipe> {
@@ -15,10 +16,11 @@ public class CampfireCookingCategory extends AbstractCookingCategory<CampfireCoo
 	}
 
 	@Override
-	public void setRecipe(IRecipeLayoutBuilder builder, CampfireCookingRecipe recipe, IFocusGroup focuses) {
+	public void setRecipe(IRecipeLayoutBuilder builder, RecipeHolder<CampfireCookingRecipe> recipeHolder, IFocusGroup focuses) {
+		CampfireCookingRecipe recipe = recipeHolder.value();
 		builder.addInputSlot(1, 1)
 			.setStandardSlotBackground()
-			.addIngredients(recipe.getIngredients().get(0));
+			.addIngredients(recipe.getIngredients().getFirst());
 
 		builder.addOutputSlot(61, 9)
 			.setOutputSlotBackground()
@@ -26,7 +28,8 @@ public class CampfireCookingCategory extends AbstractCookingCategory<CampfireCoo
 	}
 
 	@Override
-	public void createRecipeExtras(IRecipeExtrasBuilder builder, CampfireCookingRecipe recipe, IFocusGroup focuses) {
+	public void createRecipeExtras(IRecipeExtrasBuilder builder, RecipeHolder<CampfireCookingRecipe> recipeHolder, IFocusGroup focuses) {
+		CampfireCookingRecipe recipe = recipeHolder.value();
 		int cookTime = recipe.getCookingTime();
 		if (cookTime <= 0) {
 			cookTime = regularCookTime;
@@ -36,6 +39,6 @@ public class CampfireCookingCategory extends AbstractCookingCategory<CampfireCoo
 		builder.addAnimatedRecipeFlame(300)
 			.setPosition(1, 20);
 
-		addCookTime(builder, recipe);
+		addCookTime(builder, recipeHolder);
 	}
 }

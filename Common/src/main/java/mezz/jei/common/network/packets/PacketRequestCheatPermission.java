@@ -1,40 +1,43 @@
 package mezz.jei.common.network.packets;
 
-import mezz.jei.common.network.IPacketId;
-import mezz.jei.common.network.PacketIdServer;
-import mezz.jei.common.network.ServerPacketContext;
-import mezz.jei.common.network.ServerPacketData;
+import mezz.jei.api.constants.ModIds;
 import mezz.jei.common.config.IServerConfig;
 import mezz.jei.common.network.IConnectionToClient;
+import mezz.jei.common.network.ServerPacketContext;
 import mezz.jei.common.util.ServerCommandUtil;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.server.MinecraftServer;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
-import java.util.concurrent.CompletableFuture;
+public class PacketRequestCheatPermission extends PlayToServerPacket<PacketRequestCheatPermission> {
+	public static final PacketRequestCheatPermission INSTANCE = new PacketRequestCheatPermission();
+	public static final CustomPacketPayload.Type<PacketRequestCheatPermission> TYPE = new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(ModIds.JEI_ID, "request_cheat_permission"));
+	public static final StreamCodec<RegistryFriendlyByteBuf, PacketRequestCheatPermission> STREAM_CODEC = StreamCodec.unit(INSTANCE);
 
-public class PacketRequestCheatPermission extends PacketJei {
-	@Override
-	public IPacketId getPacketId() {
-		return PacketIdServer.CHEAT_PERMISSION_REQUEST;
+	private PacketRequestCheatPermission() {
+
 	}
 
 	@Override
-	public void writePacketData(FriendlyByteBuf buf) {
-		// the packet itself is the only data needed
+	public Type<PacketRequestCheatPermission> type() {
+		return TYPE;
 	}
 
-	public static CompletableFuture<Void> readPacketData(ServerPacketData data) {
-		ServerPacketContext context = data.context();
+	@Override
+	public StreamCodec<RegistryFriendlyByteBuf, PacketRequestCheatPermission> streamCodec() {
+		return STREAM_CODEC;
+	}
+
+	@Override
+	public void process(ServerPacketContext context) {
 		ServerPlayer player = context.player();
 		IServerConfig serverConfig = context.serverConfig();
-		MinecraftServer server = player.server;
-		return server.submit(() -> {
-			boolean hasPermission = ServerCommandUtil.hasPermissionForCheatMode(player, serverConfig);
-			PacketCheatPermission packetCheatPermission = new PacketCheatPermission(hasPermission);
+		boolean hasPermission = ServerCommandUtil.hasPermissionForCheatMode(player, serverConfig);
+		PacketCheatPermission packetCheatPermission = new PacketCheatPermission(hasPermission, serverConfig);
 
-			IConnectionToClient connection = context.connection();
-			connection.sendPacketToClient(packetCheatPermission, player);
-		});
+		IConnectionToClient connection = context.connection();
+		connection.sendPacketToClient(packetCheatPermission, player);
 	}
 }

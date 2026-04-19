@@ -2,10 +2,14 @@ package mezz.jei.api.recipe;
 
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.gui.buttons.IIconButtonController;
 import mezz.jei.api.gui.drawable.IScalableDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
+import mezz.jei.api.ingredients.IIngredientSupplier;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.recipe.advanced.IRecipeButtonControllerFactory;
 import mezz.jei.api.recipe.category.IRecipeCategory;
+import mezz.jei.api.registration.IAdvancedRegistration;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.resources.ResourceLocation;
 
@@ -44,7 +48,7 @@ public interface IRecipeManager {
 	 *
 	 * For more complex queries, use {@link #createRecipeCategoryLookup()}
 	 *
-	 * @since 15.5.0
+	 * @since 19.1.0
 	 */
 	<T> IRecipeCategory<T> getRecipeCategory(RecipeType<T> recipeType);
 
@@ -119,6 +123,22 @@ public interface IRecipeManager {
 
 	/**
 	 * Returns a drawable recipe layout, for addons that want to draw the layouts somewhere.
+	 * If there is something wrong and the recipe layout crashes, this will display an error recipe instead.
+	 *
+	 * @param recipeCategory the recipe category that the recipe belongs to
+	 * @param recipe         the specific recipe to draw.
+	 * @param focusGroup     the focuses of the recipe layout.
+	 *
+	 * @since 19.19.6
+	 */
+	<T> IRecipeLayoutDrawable<T> createRecipeLayoutDrawableOrShowError(
+		IRecipeCategory<T> recipeCategory,
+		T recipe,
+		IFocusGroup focusGroup
+	);
+
+	/**
+	 * Returns a drawable recipe layout, for addons that want to draw the layouts somewhere.
 	 *
 	 * @param recipeCategory the recipe category that the recipe belongs to
 	 * @param recipe         the specific recipe to draw.
@@ -142,7 +162,7 @@ public interface IRecipeManager {
 	 * @param background     the background image to draw behind the recipe layout.
 	 * @param borderSize     the number of pixels that the background should extend beyond the recipe layout on all sides
 	 *
-	 * @since 15.7.0
+	 * @since 19.4.0
 	 */
 	<T> Optional<IRecipeLayoutDrawable<T>> createRecipeLayoutDrawable(
 			IRecipeCategory<T> recipeCategory,
@@ -159,7 +179,7 @@ public interface IRecipeManager {
 	 * @param ingredients           a non-null list of optional ingredients for the slot
 	 * @param focusedIngredients    indexes of the focused ingredients in "ingredients"
 	 * @param ingredientCycleOffset the starting index for cycling the list of ingredients when rendering.
-	 * @since 15.20.0
+	 * @since 19.19.1
 	 */
 	IRecipeSlotDrawable createRecipeSlotDrawable(
 		RecipeIngredientRole role,
@@ -180,7 +200,7 @@ public interface IRecipeManager {
 	 * @since 11.5.0
 	 * @deprecated use {@link #createRecipeSlotDrawable(RecipeIngredientRole, List, Set, int)} and then set the position
 	 */
-	@Deprecated(since = "15.20.0")
+	@Deprecated(since = "19.19.1")
 	default IRecipeSlotDrawable createRecipeSlotDrawable(
 		RecipeIngredientRole role,
 		List<Optional<ITypedIngredient<?>>> ingredients,
@@ -195,13 +215,19 @@ public interface IRecipeManager {
 	}
 
 	/**
+	 * Get the ingredients for a given recipe.
+	 * @since 19.9.0
+	 */
+	<T> IIngredientSupplier getRecipeIngredients(IRecipeCategory<T> recipeCategory, T recipe);
+
+	/**
 	 * Get the registered recipe type for the given unique id.
 	 * <p>
 	 * This is useful for integrating with other mods that do not share their
 	 * recipe types directly from their API.
 	 *
 	 * @see RecipeType#getUid()
-	 * @since 15.13.0
+	 * @since 19.11.0
 	 */
 	<T> Optional<RecipeType<T>> getRecipeType(ResourceLocation recipeUid, Class<? extends T> recipeClass);
 
@@ -215,4 +241,21 @@ public interface IRecipeManager {
 	 * @since 11.2.3
 	 */
 	Optional<RecipeType<?>> getRecipeType(ResourceLocation recipeUid);
+
+	/**
+	 * Returns the registered {@link IRecipeButtonControllerFactory} instances.
+	 *
+	 * <p>
+	 * This list contains the factories that were previously registered via
+	 * {@link IAdvancedRegistration#addRecipeButtonFactory(IRecipeButtonControllerFactory)}.
+	 * </p>
+	 *
+	 * <p>
+	 * The returned factories are used to create additional
+	 * {@link IIconButtonController} instances for buttons next to recipe layouts.
+	 * </p>
+	 *
+	 * @since 19.27.0
+	 */
+	List<IRecipeButtonControllerFactory> getRecipeButtonControllerFactories();
 }

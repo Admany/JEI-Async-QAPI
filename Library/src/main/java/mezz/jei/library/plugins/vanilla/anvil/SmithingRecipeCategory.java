@@ -1,17 +1,21 @@
 package mezz.jei.library.plugins.vanilla.anvil;
 
+import com.mojang.serialization.Codec;
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.builder.IRecipeSlotBuilder;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.gui.widgets.IRecipeExtrasBuilder;
+import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.IFocusGroup;
+import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.category.AbstractRecipeCategory;
 import mezz.jei.api.recipe.category.extensions.vanilla.smithing.IExtendableSmithingRecipeCategory;
 import mezz.jei.api.recipe.category.extensions.vanilla.smithing.ISmithingCategoryExtension;
 import mezz.jei.common.util.ErrorUtil;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.SmithingRecipe;
 import net.minecraft.world.level.block.Blocks;
 import org.jetbrains.annotations.Nullable;
@@ -20,8 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
-public class SmithingRecipeCategory extends AbstractRecipeCategory<SmithingRecipe> implements IExtendableSmithingRecipeCategory {
+public class SmithingRecipeCategory extends AbstractRecipeCategory<RecipeHolder<SmithingRecipe>> implements IExtendableSmithingRecipeCategory {
 	private final Map<Class<? extends SmithingRecipe>, ISmithingCategoryExtension<?>> extensions = new HashMap<>();
 
 	public SmithingRecipeCategory(IGuiHelper guiHelper) {
@@ -35,7 +38,9 @@ public class SmithingRecipeCategory extends AbstractRecipeCategory<SmithingRecip
 	}
 
 	@Override
-	public void setRecipe(IRecipeLayoutBuilder builder, SmithingRecipe recipe, IFocusGroup focuses) {
+	public void setRecipe(IRecipeLayoutBuilder builder, RecipeHolder<SmithingRecipe> recipeHolder, IFocusGroup focuses) {
+		SmithingRecipe recipe = recipeHolder.value();
+
 		ISmithingCategoryExtension<? super SmithingRecipe> extension = getExtension(recipe);
 		if (extension == null) {
 			return;
@@ -60,13 +65,14 @@ public class SmithingRecipeCategory extends AbstractRecipeCategory<SmithingRecip
 	}
 
 	@Override
-	public void onDisplayedIngredientsUpdate(SmithingRecipe recipe, List<IRecipeSlotDrawable> recipeSlots, IFocusGroup focuses) {
+	public void onDisplayedIngredientsUpdate(RecipeHolder<SmithingRecipe> recipeHolder, List<IRecipeSlotDrawable> recipeSlots, IFocusGroup focuses) {
+		SmithingRecipe recipe = recipeHolder.value();
 		ISmithingCategoryExtension<? super SmithingRecipe> extension = getExtension(recipe);
 		if (extension == null) {
 			return;
 		}
 
-		IRecipeSlotDrawable templateSlot = recipeSlots.get(0);
+		IRecipeSlotDrawable templateSlot = recipeSlots.getFirst();
 		IRecipeSlotDrawable baseSlot = recipeSlots.get(1);
 		IRecipeSlotDrawable additionSlot = recipeSlots.get(2);
 		IRecipeSlotDrawable outputSlot = recipeSlots.get(3);
@@ -81,19 +87,25 @@ public class SmithingRecipeCategory extends AbstractRecipeCategory<SmithingRecip
 	}
 
 	@Override
-	public void createRecipeExtras(IRecipeExtrasBuilder builder, SmithingRecipe recipe, IFocusGroup focuses) {
+	public void createRecipeExtras(IRecipeExtrasBuilder builder, RecipeHolder<SmithingRecipe> recipe, IFocusGroup focuses) {
 		builder.addRecipeArrow().setPosition(61, 6);
 	}
 
 	@Override
-	public boolean isHandled(SmithingRecipe recipe) {
+	public boolean isHandled(RecipeHolder<SmithingRecipe> recipeHolder) {
+		SmithingRecipe recipe = recipeHolder.value();
 		var extension = getExtension(recipe);
 		return extension != null;
 	}
 
 	@Override
-	public ResourceLocation getRegistryName(SmithingRecipe recipe) {
-		return recipe.getId();
+	public ResourceLocation getRegistryName(RecipeHolder<SmithingRecipe> recipe) {
+		return recipe.id();
+	}
+
+	@Override
+	public Codec<RecipeHolder<SmithingRecipe>> getCodec(ICodecHelper codecHelper, IRecipeManager recipeManager) {
+		return codecHelper.getRecipeHolderCodec();
 	}
 
 	@Override

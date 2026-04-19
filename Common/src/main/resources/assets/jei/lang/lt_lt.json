@@ -23,6 +23,16 @@
   "key.jei.showUses": "Rodyti daikto panaudojimus",
   "key.jei.showUses2": "Rodyti daikto panaudojimus",
 
+  "_comment": "Config",
+  "jei.config": "Konfigūracija",
+  "jei.config.default": "Numatytoji",
+  "jei.config.valid": "Teisinga",
+  "jei.config.title": "%MODNAME konfigūracija",
+  "jei.config.mode": "Rėžimas",
+  "jei.config.client.search": "Paieškos nustatymai",
+  "jei.config.client.search.description": "Nustatymai, susiję su paieškos juosta.",
+  "jei.config.client.advanced": "Išsamiau",
+
   "_comment": "Recipe Categories",
   "gui.jei.category.smelting.experience": "%s XP",
   "gui.jei.category.fuel": "Kuras",

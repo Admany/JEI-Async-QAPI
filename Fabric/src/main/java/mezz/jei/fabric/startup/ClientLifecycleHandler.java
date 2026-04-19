@@ -2,17 +2,16 @@ package mezz.jei.fabric.startup;
 
 import mezz.jei.api.IModPlugin;
 import mezz.jei.common.Internal;
-import mezz.jei.common.config.IServerConfig;
-import mezz.jei.common.network.ClientPacketRouter;
 import mezz.jei.common.network.IConnectionToServer;
 import mezz.jei.fabric.events.JeiLifecycleEvents;
 import mezz.jei.fabric.network.ClientNetworkHandler;
 import mezz.jei.fabric.network.ConnectionToServer;
 import mezz.jei.gui.config.InternalKeyMappings;
+import mezz.jei.gui.overlay.LoadingOverlayRenderer;
 import mezz.jei.library.startup.JeiStarter;
 import mezz.jei.library.startup.StartData;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import org.apache.logging.log4j.LogManager;
@@ -25,23 +24,20 @@ public class ClientLifecycleHandler {
 
 	private final JeiStarter jeiStarter;
 	private boolean running;
-	private boolean waitingForWorldLoad = false;
 
-	public ClientLifecycleHandler(IServerConfig serverConfig) {
+	public ClientLifecycleHandler() {
 		IConnectionToServer serverConnection = new ConnectionToServer();
 		Internal.setServerConnection(serverConnection);
 
 		InternalKeyMappings keyMappings = new InternalKeyMappings(KeyBindingHelper::registerKeyBinding);
 		Internal.setKeyMappings(keyMappings);
 
-		ClientPacketRouter packetRouter = new ClientPacketRouter(serverConnection, serverConfig);
-		ClientNetworkHandler.registerClientPacketHandler(packetRouter);
+		ClientNetworkHandler.registerClientPacketHandler(serverConnection);
 
 		List<IModPlugin> plugins = FabricPluginFinder.getModPlugins();
 		StartData startData = new StartData(
 			plugins,
-			serverConnection,
-			keyMappings
+			serverConnection
 		);
 
 		this.jeiStarter = new JeiStarter(startData);
@@ -53,23 +49,17 @@ public class ClientLifecycleHandler {
 				if (running) {
 					stopJei();
 				}
-				// Wait for world to load before starting JEI
-				waitingForWorldLoad = true;
-				LOGGER.info("JEI: Recipe sync complete, waiting for world load...");
+				startJei();
 			})
 		);
 		JeiLifecycleEvents.GAME_STOP.register(this::stopJei);
 
-		// Listen for client ticks to detect when the world is fully loaded
-		ClientTickEvents.START_CLIENT_TICK.register(client -> {
-			if (waitingForWorldLoad) {
-				if (client.level != null && client.player != null) {
-					LOGGER.info("JEI: World is fully loaded, starting JEI...");
-					waitingForWorldLoad = false;
-					startJei();
-				}
-			}
-		});
+		// Register loading overlay renderer (permanent, independent of runtime)
+		ScreenEvents.BEFORE_INIT.register((client, screen, scaledWidth, scaledHeight) ->
+			ScreenEvents.afterRender(screen).register((s, guiGraphics, mouseX, mouseY, tickDelta) ->
+				LoadingOverlayRenderer.renderLoadingOverlay(s, guiGraphics)
+			)
+		);
 	}
 
 	public ResourceManagerReloadListener getReloadListener() {
@@ -99,10 +89,6 @@ public class ClientLifecycleHandler {
 
 		this.jeiStarter.start();
 		running = true;
-
-		// Fire initialization event for mods that depend on JEI being ready
-		JeiLifecycleEvents.INITIALIZED.invoker().run();
-		LOGGER.info("JEI has finished initializing. Mods can now access the JEI runtime via IModPlugin.onRuntimeAvailable().");
 	}
 
 	private void stopJei() {

@@ -38,7 +38,7 @@ public interface IIngredientTypeWithSubtypes<B, I> extends IIngredientType<I> {
 	 * @return a default ingredient for the given base ingredient.
 	 * For example, Item returns an ItemStack, and Fluid returns a FluidStack.
 	 *
-	 * @since 15.8.6
+	 * @since 19.5.6
 	 */
 	default I getDefaultIngredient(B base) {
 		throw new UnsupportedOperationException();

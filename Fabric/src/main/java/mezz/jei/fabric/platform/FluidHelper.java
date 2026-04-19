@@ -1,13 +1,13 @@
 package mezz.jei.fabric.platform;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import mezz.jei.api.fabric.constants.FabricTypes;
 import mezz.jei.api.fabric.ingredients.fluids.IJeiFluidIngredient;
-import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientTypeWithSubtypes;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
-import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
 import mezz.jei.fabric.ingredients.fluid.JeiFluidIngredient;
 import mezz.jei.library.render.FluidTankRenderer;
@@ -19,26 +19,48 @@ import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
 import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariantAttributes;
 import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.material.Fluid;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
-@SuppressWarnings("UnstableApiUsage")
 public class FluidHelper implements IPlatformFluidHelperInternal<IJeiFluidIngredient> {
+	private static final Codec<Long> POSITIVE_LONG = Codec.LONG.validate((integer) -> {
+		if (integer.compareTo((long) 1) >= 0 && integer.compareTo(Long.MAX_VALUE) <= 0) {
+			return DataResult.success(integer);
+		}
+		return DataResult.error(() -> "Value must be positive: " + integer);
+	});
+
+	private static final Codec<IJeiFluidIngredient> CODEC = Codec.lazyInitialized(() -> {
+		return RecordCodecBuilder.create((builder) -> {
+			return builder.group(
+					FluidVariant.CODEC.fieldOf("variant")
+						.forGetter(IJeiFluidIngredient::getFluidVariant),
+					POSITIVE_LONG.fieldOf("amount")
+						.forGetter(IJeiFluidIngredient::getAmount)
+				)
+				.apply(builder, JeiFluidIngredient::new);
+		});
+	});
+
+	private static final Codec<IJeiFluidIngredient> NORMALIZED_CODEC = Codec.lazyInitialized(() -> {
+		return FluidVariant.CODEC.xmap(
+			fluidVariant -> {
+				return new JeiFluidIngredient(fluidVariant, FluidConstants.BUCKET);
+			},
+			IJeiFluidIngredient::getFluidVariant
+		);
+	});
+
 	@Override
 	public IIngredientTypeWithSubtypes<Fluid, IJeiFluidIngredient> getFluidIngredientType() {
 		return FabricTypes.FLUID_STACK;
-	}
-
-	@Override
-	public IIngredientSubtypeInterpreter<IJeiFluidIngredient> getAllNbtSubtypeInterpreter() {
-		return AllFluidNbt.INSTANCE;
 	}
 
 	@Override
@@ -48,17 +70,17 @@ public class FluidHelper implements IPlatformFluidHelperInternal<IJeiFluidIngred
 
 	@Override
 	public Optional<TextureAtlasSprite> getStillFluidSprite(IJeiFluidIngredient ingredient) {
-		FluidVariant fluidVariant = getFluidVariant(ingredient);
+		FluidVariant fluidVariant = ingredient.getFluidVariant();
 		TextureAtlasSprite sprite = FluidVariantRendering.getSprite(fluidVariant);
 		return Optional.ofNullable(sprite);
 	}
 
 	@Override
 	public Component getDisplayName(IJeiFluidIngredient ingredient) {
-		FluidVariant fluidVariant = getFluidVariant(ingredient);
+		FluidVariant fluidVariant = ingredient.getFluidVariant();
 		Component displayName = FluidVariantAttributes.getName(fluidVariant);
 
-		Fluid fluid = fluidVariant.getFluid();
+		Fluid fluid = ingredient.getFluidVariant().getFluid();
 		if (!fluid.isSource(fluid.defaultFluidState())) {
 			return Component.translatable("jei.tooltip.liquid.flowing", displayName);
 		}
@@ -67,22 +89,16 @@ public class FluidHelper implements IPlatformFluidHelperInternal<IJeiFluidIngred
 
 	@Override
 	public int getColorTint(IJeiFluidIngredient ingredient) {
-		FluidVariant fluidVariant = getFluidVariant(ingredient);
+		FluidVariant fluidVariant = ingredient.getFluidVariant();
 		int fluidColor = FluidVariantRendering.getColor(fluidVariant);
 		return fluidColor | 0xFF000000;
 	}
 
 	@Override
-	public void getTooltip(ITooltipBuilder tooltip, IJeiFluidIngredient ingredient, TooltipFlag tooltipFlag) {
-		FluidVariant fluidVariant = getFluidVariant(ingredient);
+	public void getTooltip(List<Component> tooltip, IJeiFluidIngredient ingredient, TooltipFlag tooltipFlag) {
+		FluidVariant fluidVariant = ingredient.getFluidVariant();
 		List<Component> components = FluidVariantRendering.getTooltip(fluidVariant, tooltipFlag);
 		tooltip.addAll(components);
-	}
-
-	private FluidVariant getFluidVariant(IJeiFluidIngredient ingredient) {
-		Fluid fluid = ingredient.getFluid();
-		CompoundTag tag = ingredient.getTag().orElse(null);
-		return FluidVariant.of(fluid, tag);
 	}
 
 	@Override
@@ -91,30 +107,31 @@ public class FluidHelper implements IPlatformFluidHelperInternal<IJeiFluidIngred
 	}
 
 	@Override
-	public Optional<CompoundTag> getTag(IJeiFluidIngredient ingredient) {
-		return ingredient.getTag();
+	public DataComponentPatch getComponentsPatch(IJeiFluidIngredient ingredient) {
+		FluidVariant fluid = ingredient.getFluidVariant();
+		return fluid.getComponents();
 	}
 
-	@SuppressWarnings("UnstableApiUsage")
 	@Override
 	public long bucketVolume() {
 		return FluidConstants.BUCKET;
 	}
 
 	@Override
-	public IJeiFluidIngredient create(Fluid fluid, long amount, @Nullable CompoundTag tag) {
-		return new JeiFluidIngredient(fluid, amount, tag);
+	public IJeiFluidIngredient create(Holder<Fluid> fluid, long amount, DataComponentPatch patch) {
+		FluidVariant fluidVariant = FluidVariant.of(fluid.value(), patch);
+		return new JeiFluidIngredient(fluidVariant, amount);
 	}
 
 	@Override
-	public IJeiFluidIngredient create(Fluid fluid, long amount) {
-		return new JeiFluidIngredient(fluid, amount);
+	public IJeiFluidIngredient create(Holder<Fluid> fluid, long amount) {
+		FluidVariant fluidVariant = FluidVariant.of(fluid.value());
+		return new JeiFluidIngredient(fluidVariant, amount);
 	}
 
 	@Override
 	public IJeiFluidIngredient copy(IJeiFluidIngredient ingredient) {
-		CompoundTag tag = ingredient.getTag().orElse(null);
-		return new JeiFluidIngredient(ingredient.getFluid(), ingredient.getAmount(), tag);
+		return new JeiFluidIngredient(ingredient.getFluidVariant(), ingredient.getAmount());
 	}
 
 	@Override
@@ -122,8 +139,7 @@ public class FluidHelper implements IPlatformFluidHelperInternal<IJeiFluidIngred
 		if (ingredient.getAmount() == bucketVolume()) {
 			return ingredient;
 		}
-		CompoundTag tag = ingredient.getTag().orElse(null);
-		return new JeiFluidIngredient(ingredient.getFluid(), bucketVolume(), tag);
+		return new JeiFluidIngredient(ingredient.getFluidVariant(), bucketVolume());
 	}
 
 	@Override
@@ -136,28 +152,20 @@ public class FluidHelper implements IPlatformFluidHelperInternal<IJeiFluidIngred
 			.map(Iterator::next)
 			.map(view -> {
 				FluidVariant resource = view.getResource();
-				return new JeiFluidIngredient(resource.getFluid(), bucketVolume(), resource.copyNbt());
+				return new JeiFluidIngredient(resource, view.getAmount());
 			});
-	}
-
-	private static class AllFluidNbt implements IIngredientSubtypeInterpreter<IJeiFluidIngredient> {
-		public static final AllFluidNbt INSTANCE = new AllFluidNbt();
-
-		private AllFluidNbt() {
-		}
-
-		@Override
-		public String apply(IJeiFluidIngredient storage, UidContext context) {
-			return storage.getTag()
-				.filter(tag -> !tag.isEmpty())
-				.map(CompoundTag::toString)
-				.orElse(IIngredientSubtypeInterpreter.NONE);
-		}
 	}
 
 	@Override
 	public IJeiFluidIngredient copyWithAmount(IJeiFluidIngredient ingredient, long amount) {
-		CompoundTag tag = ingredient.getTag().orElse(null);
-		return new JeiFluidIngredient(ingredient.getFluid(), amount, tag);
+		return new JeiFluidIngredient(ingredient.getFluidVariant(), amount);
+	}
+
+	@Override
+	public Codec<IJeiFluidIngredient> getCodec() {
+		return Codec.withAlternative(
+			NORMALIZED_CODEC,
+			CODEC // TODO: remove this fallback codec in the next major version of JEI
+		);
 	}
 }

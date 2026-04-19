@@ -5,9 +5,9 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.ingredients.IListElement;
 import mezz.jei.gui.ingredients.IListElementInfo;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
-import java.util.Optional;
 import java.util.Set;
 
 public interface IElementSearch {
@@ -19,7 +19,8 @@ public interface IElementSearch {
 
 	Set<IListElement<?>> getSearchResults(ElementPrefixParser.TokenInfo tokenInfo);
 
-	<T> Optional<IListElement<T>> findElement(ITypedIngredient<T> ingredient, IIngredientHelper<T> ingredientHelper);
+	@Nullable
+	<T> IListElement<T> findElement(ITypedIngredient<T> ingredient, IIngredientHelper<T> ingredientHelper);
 
 	void logStatistics();
 }

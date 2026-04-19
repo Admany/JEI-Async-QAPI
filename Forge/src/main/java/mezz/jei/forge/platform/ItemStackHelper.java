@@ -17,13 +17,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class ItemStackHelper implements IPlatformItemStackHelper {
 	private static final Logger LOGGER = LogManager.getLogger();
-
-	// Cache the test tooltip result since it's only used for mod name formatting detection
-	private static final AtomicReference<List<Component>> cachedTestTooltip = new AtomicReference<>();
 
 	@Override
 	public int getBurnTime(ItemStack itemStack) {
@@ -53,29 +49,15 @@ public class ItemStackHelper implements IPlatformItemStackHelper {
 
 	@Override
 	public List<Component> getTestTooltip(@Nullable Player player, ItemStack itemStack) {
-		// Return cached result if available (this is called frequently for mod name formatting)
-		List<Component> cached = cachedTestTooltip.get();
-		if (cached != null) {
-			return cached;
-		}
-
 		try {
-			List<Component> tooltip = new ArrayList<>(1);
+			List<Component> tooltip = new ArrayList<>();
 			tooltip.add(Component.literal("JEI Tooltip Testing for mod name formatting"));
 			@SuppressWarnings("UnstableApiUsage")
 			ItemTooltipEvent tooltipEvent = ForgeEventFactory.onItemTooltip(itemStack, player, tooltip, TooltipFlag.Default.NORMAL);
-			List<Component> result = tooltipEvent.getToolTip();
-
-			// Cache the result for future calls
-			cachedTestTooltip.set(result);
-			return result;
+			return tooltipEvent.getToolTip();
 		} catch (LinkageError | RuntimeException e) {
 			LOGGER.error("Error while Testing for mod name formatting", e);
 		}
-
-		// Cache empty list on failure to avoid repeated failed calls
-		List<Component> empty = List.of();
-		cachedTestTooltip.set(empty);
-		return empty;
+		return List.of();
 	}
 }

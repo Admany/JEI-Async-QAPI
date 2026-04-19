@@ -6,6 +6,7 @@ import net.minecraft.network.chat.Component;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Helper class for getting mod names from their modIds.
@@ -28,6 +29,12 @@ public interface IModIdHelper {
 	String getFormattedModNameForModId(String modId);
 
 	/**
+	 * Returns alternative mod names, used for searching for a mod by a different name.
+	 * @since 17.1.0
+	 */
+	Set<String> getModAliases(String modId);
+
+	/**
 	 * Adds the mod name to the tooltip with color formatting.
 	 *
 	 * If {@link #isDisplayingModNameEnabled()} is false,
@@ -35,7 +42,7 @@ public interface IModIdHelper {
 	 *
 	 * @deprecated use {@link #getModNameForTooltip(ITypedIngredient)}
 	 */
-	@Deprecated(since = "15.8.4", forRemoval = true)
+	@Deprecated(since = "19.5.4", forRemoval = true)
 	<T> List<Component> addModNameToIngredientTooltip(List<Component> tooltip, T ingredient, IIngredientHelper<T> ingredientHelper);
 
 	/**
@@ -48,7 +55,7 @@ public interface IModIdHelper {
 	 *
 	 * @deprecated use {@link #getModNameForTooltip(ITypedIngredient)}
 	 */
-	@Deprecated(since = "15.8.4", forRemoval = true)
+	@Deprecated(since = "19.5.4", forRemoval = true)
 	<T> List<Component> addModNameToIngredientTooltip(List<Component> tooltip, ITypedIngredient<T> typedIngredient);
 
 	/**
@@ -57,7 +64,7 @@ public interface IModIdHelper {
 	 * If {@link #isDisplayingModNameEnabled()} is false,
 	 * or another mod already adds the mod name, this will return {@link Optional#empty}.
 	 *
-	 * @since 15.8.1
+	 * @since 19.5.1
 	 */
 	<T> Optional<Component> getModNameForTooltip(ITypedIngredient<T> typedIngredient);
 }

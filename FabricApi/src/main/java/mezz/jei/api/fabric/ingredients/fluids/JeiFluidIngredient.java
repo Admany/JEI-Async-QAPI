@@ -1,29 +1,20 @@
 package mezz.jei.api.fabric.ingredients.fluids;
 
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.level.material.Fluid;
-import org.jetbrains.annotations.Nullable;
-
-import java.util.Optional;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
 
 /**
  * A simple record type that implements {@link IJeiFluidIngredient}
  *
- * @since 15.8.6
+ * @since 19.5.6
  */
-public record JeiFluidIngredient(Fluid fluid, long amount, @Nullable CompoundTag tag) implements IJeiFluidIngredient {
+public record JeiFluidIngredient(FluidVariant fluid, long amount) implements IJeiFluidIngredient {
 	@Override
-	public Fluid getFluid() {
+	public FluidVariant getFluidVariant() {
 		return fluid;
 	}
 
 	@Override
 	public long getAmount() {
 		return amount;
-	}
-
-	@Override
-	public Optional<CompoundTag> getTag() {
-		return Optional.ofNullable(tag);
 	}
 }

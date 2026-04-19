@@ -1,5 +1,6 @@
 package mezz.jei.library.runtime;
 
+import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.helpers.IJeiHelpers;
@@ -15,8 +16,8 @@ import mezz.jei.api.runtime.IIngredientVisibility;
 import mezz.jei.common.platform.Services;
 import mezz.jei.library.gui.helpers.GuiHelper;
 import net.minecraft.resources.ResourceLocation;
-
 import org.jetbrains.annotations.Nullable;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
@@ -32,6 +33,7 @@ public class JeiHelpers implements IJeiHelpers {
 	private final IVanillaRecipeFactory vanillaRecipeFactory;
 	private final IIngredientVisibility ingredientVisibility;
 	private final IPlatformFluidHelper<?> platformFluidHelper;
+	private final ICodecHelper codecHelper;
 	private @Nullable Collection<IRecipeCategory<?>> recipeCategories;
 
 	public JeiHelpers(
@@ -42,6 +44,7 @@ public class JeiHelpers implements IJeiHelpers {
 		IColorHelper colorHelper,
 		IIngredientManager ingredientManager,
 		IVanillaRecipeFactory vanillaRecipeFactory,
+		ICodecHelper codecHelper,
 		IIngredientVisibility ingredientVisibility
 	) {
 		this.guiHelper = guiHelper;
@@ -53,6 +56,7 @@ public class JeiHelpers implements IJeiHelpers {
 		this.vanillaRecipeFactory = vanillaRecipeFactory;
 		this.ingredientVisibility = ingredientVisibility;
 		this.platformFluidHelper = Services.PLATFORM.getFluidHelper();
+		this.codecHelper = codecHelper;
 	}
 
 	public void setRecipeCategories(Collection<IRecipeCategory<?>> recipeCategories) {
@@ -104,7 +108,6 @@ public class JeiHelpers implements IJeiHelpers {
 			);
 	}
 
-	@SuppressWarnings("removal")
 	@Override
 	public Optional<RecipeType<?>> getRecipeType(ResourceLocation uid) {
 		return Optional.ofNullable(this.recipeCategories)
@@ -127,6 +130,11 @@ public class JeiHelpers implements IJeiHelpers {
 	@Override
 	public IIngredientManager getIngredientManager() {
 		return ingredientManager;
+	}
+
+	@Override
+	public ICodecHelper getCodecHelper() {
+		return codecHelper;
 	}
 
 	@Override

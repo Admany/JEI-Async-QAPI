@@ -1,7 +1,10 @@
 package mezz.jei.api.runtime;
 
+import com.mojang.serialization.Codec;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.gui.builder.IClickableIngredientFactory;
+import mezz.jei.api.helpers.ICodecHelper;
 import mezz.jei.api.helpers.IJeiHelpers;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
@@ -13,6 +16,7 @@ import mezz.jei.api.registration.IExtraIngredientRegistration;
 import mezz.jei.api.registration.IIngredientAliasRegistration;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.Collection;
@@ -43,6 +47,14 @@ public interface IIngredientManager {
 	<V> Collection<V> getAllIngredients(IIngredientType<V> ingredientType);
 
 	/**
+	 * Returns an unmodifiable collection of all the ingredients known to JEI, of the specified type.
+	 *
+	 * @since 19.24.0
+	 */
+	@Unmodifiable
+	<V> Collection<ITypedIngredient<V>> getAllTypedIngredients(IIngredientType<V> ingredientType);
+
+	/**
 	 * Returns the appropriate ingredient helper for this ingredient.
 	 */
 	<V> IIngredientHelper<V> getIngredientHelper(V ingredient);
@@ -63,6 +75,13 @@ public interface IIngredientManager {
 	<V> IIngredientRenderer<V> getIngredientRenderer(IIngredientType<V> ingredientType);
 
 	/**
+	 * Returns an appropriate ingredient serializer codec for this ingredient type.
+	 *
+	 * @since 19.9.0
+	 */
+	<V> Codec<V> getIngredientCodec(IIngredientType<V> ingredientType);
+
+	/**
 	 * Returns an unmodifiable collection of all registered ingredient types.
 	 * Without addons, there is {@link VanillaTypes#ITEM_STACK}.
 	 */
@@ -72,7 +91,7 @@ public interface IIngredientManager {
 	/**
 	 * @return the ingredient type that has the given uid.
 	 * @see IIngredientType#getUid()
-	 * @since 15.5.0
+	 * @since 19.1.0
 	 */
 	Optional<IIngredientType<?>> getIngredientTypeForUid(String ingredientTypeUid);
 
@@ -94,6 +113,15 @@ public interface IIngredientManager {
 
 	/**
 	 * Helper method to get ingredient type for an ingredient.
+	 * Returns null if there is no known type for the given ingredient.
+	 *
+	 * @since 19.19.5
+	 */
+	@Nullable
+	<V> IIngredientType<V> getIngredientType(V ingredient);
+
+	/**
+	 * Helper method to get ingredient type for an ingredient.
 	 * Returns {@link Optional#empty()} if there is no known type for the given ingredient.
 	 *
 	 * @since 11.5.0
@@ -104,7 +132,7 @@ public interface IIngredientManager {
 	 * Helper method to get ingredient type for an ingredient.
 	 * Returns {@link Optional#empty()} if there is no known type for the given ingredient.
 	 *
-	 * @since 15.8.6
+	 * @since 19.5.6
 	 */
 	<B, I> Optional<IIngredientTypeWithSubtypes<B, I>> getIngredientTypeWithSubtypesFromBase(B baseIngredient);
 
@@ -123,9 +151,47 @@ public interface IIngredientManager {
 	 * cannot be used in {@link ITypedIngredient} and will instead be {@link Optional#empty()}.
 	 * This helps turn all special cases like {@link ItemStack#EMPTY} into {@link Optional#empty()} instead.
 	 *
-	 * @since 11.5.0
+	 * @param ingredientType the type of the ingredient
+	 * @param ingredient the ingredient
+	 * @param normalize set true to normalize the ingredient (see {@link IIngredientHelper#normalizeIngredient}
+	 *
+	 * @since 19.23.0
 	 */
-	<V> Optional<ITypedIngredient<V>> createTypedIngredient(IIngredientType<V> ingredientType, V ingredient);
+	<V> Optional<ITypedIngredient<V>> createTypedIngredient(IIngredientType<V> ingredientType, V ingredient, boolean normalize);
+
+	/**
+	 * Create a typed ingredient, if the given ingredient is valid and has a known type.
+	 *
+	 * Invalid ingredients (according to {@link IIngredientHelper#isValidIngredient}
+	 * cannot be created into {@link ITypedIngredient} and will instead be {@link Optional#empty()}.
+	 * This helps turn all special cases like {@link ItemStack#EMPTY} into {@link Optional#empty()} instead.
+	 *
+	 * @param ingredient the ingredient
+	 * @param normalize set true to normalize the ingredient (see {@link IIngredientHelper#normalizeIngredient}
+	 *
+	 * @return {@link Optional#empty()} if there is no known type for the given ingredient or the ingredient is invalid.
+	 *
+	 * @since 19.23.0
+	 */
+	default <T> Optional<ITypedIngredient<T>> createTypedIngredient(T ingredient, boolean normalize) {
+		return getIngredientTypeChecked(ingredient)
+			.flatMap(ingredientType -> createTypedIngredient(ingredientType, ingredient, normalize));
+	}
+
+	/**
+	 * Create a typed ingredient, if the given ingredient is valid.
+	 *
+	 * Invalid ingredients (according to {@link IIngredientHelper#isValidIngredient})
+	 * cannot be used in {@link ITypedIngredient} and will instead be {@link Optional#empty()}.
+	 * This helps turn all special cases like {@link ItemStack#EMPTY} into {@link Optional#empty()} instead.
+	 *
+	 * @since 11.5.0
+	 * @deprecated use {@link #createTypedIngredient(IIngredientType, Object, boolean)}
+	 */
+	@Deprecated(forRemoval = true, since = "19.23.0")
+	default <V> Optional<ITypedIngredient<V>> createTypedIngredient(IIngredientType<V> ingredientType, V ingredient) {
+		return createTypedIngredient(ingredientType, ingredient, false);
+	}
 
 	/**
 	 * Create a typed ingredient, if the given ingredient is valid and has a known type.
@@ -137,10 +203,11 @@ public interface IIngredientManager {
 	 * @return {@link Optional#empty()} if there is no known type for the given ingredient or the ingredient is invalid.
 	 *
 	 * @since 15.2.0
+	 * @deprecated use {@link #createTypedIngredient(Object, boolean)}
 	 */
+	@Deprecated(forRemoval = true, since = "19.23.0")
 	default <V> Optional<ITypedIngredient<V>> createTypedIngredient(V ingredient) {
-		return getIngredientTypeChecked(ingredient)
-			.flatMap(ingredientType -> createTypedIngredient(ingredientType, ingredient));
+		return createTypedIngredient(ingredient, false);
 	}
 
 	/**
@@ -148,9 +215,18 @@ public interface IIngredientManager {
 	 *
 	 * @see IIngredientHelper#normalizeIngredient
 	 *
-	 * @since 15.5.0
+	 * @since 19.1.0
 	 */
 	<V> ITypedIngredient<V> normalizeTypedIngredient(ITypedIngredient<V> typedIngredient);
+
+	/**
+	 * Get the factory for creating clickable ingredients.
+	 *
+	 * @see IClickableIngredient
+	 *
+	 * @since 19.23.0
+	 */
+	IClickableIngredientFactory getClickableIngredientFactory();
 
 	/**
 	 * Create a clickable ingredient.
@@ -164,8 +240,11 @@ public interface IIngredientManager {
 	 *
 	 * @return a clickable ingredient, or {@link Optional#empty()} if the ingredient is invalid (see {@link IIngredientHelper#isValidIngredient}
 	 *
-	 * @since 15.19.2
+	 * @since 19.18.5
+	 *
+	 * @deprecated use {@link #getClickableIngredientFactory()}
 	 */
+	@Deprecated(forRemoval = true, since = "19.23.0")
 	<V> Optional<IClickableIngredient<V>> createClickableIngredient(IIngredientType<V> ingredientType, V ingredient, Rect2i area, boolean normalize);
 
 	/**
@@ -179,8 +258,11 @@ public interface IIngredientManager {
 	 *
 	 * @return a clickable ingredient, or {@link Optional#empty()} if the ingredient is invalid (see {@link IIngredientHelper#isValidIngredient}
 	 *
-	 * @since 15.19.3
+	 * @since 19.18.6
+	 *
+	 * @deprecated use {@link #getClickableIngredientFactory()}
 	 */
+	@Deprecated(forRemoval = true, since = "19.23.0")
 	default <V> Optional<IClickableIngredient<V>> createClickableIngredient(V ingredient, Rect2i area, boolean normalize) {
 		return getIngredientTypeChecked(ingredient)
 			.flatMap(type -> createClickableIngredient(type, ingredient, area, normalize));
@@ -191,17 +273,21 @@ public interface IIngredientManager {
 	 * This uses the uids from {@link IIngredientHelper#getUniqueId(Object, UidContext)}
 	 *
 	 * @since 11.5.0
-	 * @deprecated Use {@link #getTypedIngredientByUid(IIngredientType, String)} instead.
+	 * @deprecated Use ingredient serialization from {@link ICodecHelper#getTypedIngredientCodec()} instead of this method.
 	 */
-	@Deprecated(since = "15.5.0")
+	@SuppressWarnings("removal")
+	@Deprecated(since = "19.1.0", forRemoval = true)
 	<V> Optional<V> getIngredientByUid(IIngredientType<V> ingredientType, String ingredientUuid);
 
 	/**
 	 * Get an ingredient by the given type and unique id.
 	 * This uses the uids from {@link IIngredientHelper#getUniqueId(Object, UidContext)}
 	 *
-	 * @since 15.5.0
+	 * @since 19.1.0
+	 * @deprecated use ingredient serialization from {@link ICodecHelper#getTypedIngredientCodec()} instead of this method.
 	 */
+	@SuppressWarnings("removal")
+	@Deprecated(since = "19.9.0", forRemoval = true)
 	<V> Optional<ITypedIngredient<V>> getTypedIngredientByUid(IIngredientType<V> ingredientType, String ingredientUuid);
 
 	/**
@@ -210,7 +296,7 @@ public interface IIngredientManager {
 	 *
 	 * If search aliases are disabled by the player in the configs, this will return an empty collection.
 	 *
-	 * @since 15.15.0
+	 * @since 19.10.0
 	 */
 	Collection<String> getIngredientAliases(ITypedIngredient<?> ingredient);
 

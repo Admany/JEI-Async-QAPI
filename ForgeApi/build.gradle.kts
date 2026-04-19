@@ -2,6 +2,8 @@ import net.minecraftforge.gradle.common.tasks.DownloadMavenArtifact
 
 plugins {
 	id("java")
+	id("idea")
+	id("eclipse")
 	id("maven-publish")
 	id("net.minecraftforge.gradle")
 	id("org.parchmentmc.librarian.forgegradle")
@@ -26,6 +28,11 @@ val dependencyProjects: List<Project> = listOf(
 
 dependencyProjects.forEach {
 	project.evaluationDependsOn(it.path)
+}
+
+// Hack fix: FG can't resolve deps like lwjgl-freetype-3.3.3-natives-macos-patch.jar without this
+repositories {
+	maven("https://libraries.minecraft.net")
 }
 
 sourceSets {
@@ -59,10 +66,20 @@ dependencies {
 	dependencyProjects.forEach {
 		implementation(it)
 	}
+
+	// Hack fix for now, force jopt-simple to be exactly 5.0.4 because Mojang ships that version, but some transitive dependencies request 6.0+
+	implementation("net.sf.jopt-simple:jopt-simple:5.0.4") {
+		version {
+			strictly("5.0.4")
+		}
+	}
 }
 
 minecraft {
 	mappings("parchment", parchmentVersionForge)
+
+	// we now use Official mappings at runtime
+	reobf = false
 
 	copyIdeResources.set(true)
 
@@ -71,10 +88,6 @@ minecraft {
 	accessTransformer(file("../Forge/src/main/resources/META-INF/accesstransformer.cfg"))
 
 	// no runs are configured for API
-}
-
-tasks.jar {
-	finalizedBy("reobfJar")
 }
 
 val sourcesJar = tasks.named<Jar>("sourcesJar")
@@ -120,4 +133,13 @@ publishing {
 
 tasks.withType<DownloadMavenArtifact> {
 	notCompatibleWithConfigurationCache("uses Task.project at execution time")
+}
+
+
+idea {
+	module {
+		for (fileName in listOf("build", "run", "out", "logs")) {
+			excludeDirs.add(file(fileName))
+		}
+	}
 }

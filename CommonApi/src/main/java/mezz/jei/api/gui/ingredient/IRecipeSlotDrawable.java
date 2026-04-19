@@ -43,15 +43,26 @@ public interface IRecipeSlotDrawable extends IRecipeSlotView {
 	 * Get the plain tooltip for this recipe slot.
 	 *
 	 * @since 11.5.0
+	 * @deprecated use {@link #drawTooltip}
 	 */
+	@Deprecated(since = "19.22.0", forRemoval = true)
 	List<Component> getTooltip();
 
 	/**
 	 * Get the rich tooltip for this recipe slot.
 	 *
-	 * @since 15.8.4
+	 * @since 19.5.4
+	 * @deprecated use {@link #drawTooltip}
 	 */
+	@Deprecated(since = "19.22.0", forRemoval = true)
 	void getTooltip(ITooltipBuilder tooltipBuilder);
+
+	/**
+	 * Draw the tooltip for this recipe slot at the given mouse position.
+	 *
+	 * @since 19.22.0
+	 */
+	void drawTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY);
 
 	/**
 	 * Return true if the mouse is over the slot.
@@ -59,7 +70,7 @@ public interface IRecipeSlotDrawable extends IRecipeSlotView {
 	 * @param mouseX relative to its parent element.
 	 * @param mouseY relative to its parent element.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	boolean isMouseOver(double mouseX, double mouseY);
 
@@ -68,7 +79,7 @@ public interface IRecipeSlotDrawable extends IRecipeSlotView {
 	 * @param x the new x coordinate, relative to its parent element.
 	 * @param y the new y coordinate, relative to its parent element.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	void setPosition(int x, int y);
 
@@ -76,14 +87,14 @@ public interface IRecipeSlotDrawable extends IRecipeSlotView {
 	 * Overrides the currently displayed ingredients.
 	 * Set this from {@link IRecipeCategory#onDisplayedIngredientsUpdate} when the currently displayed ingredients change.
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	IIngredientConsumer createDisplayOverrides();
 
 	/**
 	 * Removes any display overrides that were set with {@link #createDisplayOverrides()}.
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	void clearDisplayOverrides();
 
@@ -93,7 +104,7 @@ public interface IRecipeSlotDrawable extends IRecipeSlotView {
 	 * @since 11.5.0
 	 * @deprecated use {@link #isMouseOver(double, double)} to check if the mouse is over the slot
 	 */
-	@Deprecated(since = "15.9.0", forRemoval = true)
+	@Deprecated(since = "19.6.0", forRemoval = true)
 	Rect2i getRect();
 
 	/**
@@ -103,7 +114,7 @@ public interface IRecipeSlotDrawable extends IRecipeSlotView {
 	 * @deprecated use {@link IRecipeSlotBuilder#addRichTooltipCallback(IRecipeSlotRichTooltipCallback)} instead, when creating the slot
 	 */
 	@SuppressWarnings("removal")
-	@Deprecated(since = "15.8.4", forRemoval = true)
+	@Deprecated(since = "19.5.4", forRemoval = true)
 	default void addTooltipCallback(IRecipeSlotTooltipCallback tooltipCallback) {
 
 	}
@@ -112,7 +123,7 @@ public interface IRecipeSlotDrawable extends IRecipeSlotView {
 	 * Get the area that this recipe slot draws on, including the area covered by its background texture.
 	 * Useful for laying out other recipe elements relative to the slot.
 	 *
-	 * @since 15.20.0
+	 * @since 19.19.3
 	 */
 	Rect2i getAreaIncludingBackground();
 }

@@ -59,7 +59,7 @@ public interface IJeiRuntime {
 	 * @since 9.3.0
 	 * @deprecated use {@link IJeiHelpers#getIngredientVisibility()}
 	 */
-	@Deprecated(since = "15.19.1", forRemoval = true)
+	@Deprecated(since = "19.18.4", forRemoval = true)
 	default IIngredientVisibility getIngredientVisibility() {
 		return getJeiHelpers().getIngredientVisibility();
 	}

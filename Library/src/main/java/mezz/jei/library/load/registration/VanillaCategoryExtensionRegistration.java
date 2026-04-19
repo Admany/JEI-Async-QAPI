@@ -1,21 +1,18 @@
 package mezz.jei.library.load.registration;
 
 import mezz.jei.api.helpers.IJeiHelpers;
+import mezz.jei.api.recipe.category.extensions.vanilla.crafting.IExtendableCraftingRecipeCategory;
 import mezz.jei.api.recipe.category.extensions.vanilla.smithing.IExtendableSmithingRecipeCategory;
-import mezz.jei.library.runtime.JeiHelpers;
-import net.minecraft.world.item.crafting.CraftingRecipe;
-
-import mezz.jei.api.recipe.category.extensions.IExtendableRecipeCategory;
-import mezz.jei.api.recipe.category.extensions.vanilla.crafting.ICraftingCategoryExtension;
 import mezz.jei.api.registration.IVanillaCategoryExtensionRegistration;
+import mezz.jei.library.runtime.JeiHelpers;
 
 public class VanillaCategoryExtensionRegistration implements IVanillaCategoryExtensionRegistration {
-	private final IExtendableRecipeCategory<CraftingRecipe, ICraftingCategoryExtension> craftingCategory;
+	private final IExtendableCraftingRecipeCategory craftingCategory;
 	private final IExtendableSmithingRecipeCategory smithingCategory;
 	private final JeiHelpers jeiHelpers;
 
 	public VanillaCategoryExtensionRegistration(
-		IExtendableRecipeCategory<CraftingRecipe, ICraftingCategoryExtension> craftingCategory,
+		IExtendableCraftingRecipeCategory craftingCategory,
 		IExtendableSmithingRecipeCategory smithingCategory,
 		JeiHelpers jeiHelpers
 	) {
@@ -25,7 +22,7 @@ public class VanillaCategoryExtensionRegistration implements IVanillaCategoryExt
 	}
 
 	@Override
-	public IExtendableRecipeCategory<CraftingRecipe, ICraftingCategoryExtension> getCraftingCategory() {
+	public IExtendableCraftingRecipeCategory getCraftingCategory() {
 		return craftingCategory;
 	}
 

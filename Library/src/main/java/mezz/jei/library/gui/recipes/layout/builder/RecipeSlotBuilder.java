@@ -17,16 +17,16 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.Internal;
 import mezz.jei.common.gui.elements.OffsetDrawable;
+import mezz.jei.common.platform.IPlatformFluidHelperInternal;
+import mezz.jei.common.platform.Services;
+import mezz.jei.common.util.ErrorUtil;
 import mezz.jei.common.util.ImmutableRect2i;
 import mezz.jei.core.util.Pair;
 import mezz.jei.library.gui.ingredients.ICycler;
 import mezz.jei.library.gui.ingredients.RecipeSlot;
 import mezz.jei.library.gui.ingredients.RendererOverrides;
 import mezz.jei.library.ingredients.DisplayIngredientAcceptor;
-import mezz.jei.common.platform.IPlatformFluidHelperInternal;
-import mezz.jei.common.platform.Services;
-import mezz.jei.common.util.ErrorUtil;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.world.level.material.Fluid;
 import org.jetbrains.annotations.Nullable;
 
@@ -80,8 +80,8 @@ public class RecipeSlotBuilder implements IRecipeSlotBuilder {
 	}
 
 	@Override
-	public IRecipeSlotBuilder addFluidStack(Fluid fluid, long amount, CompoundTag tag) {
-		this.ingredients.addFluidStack(fluid, amount, tag);
+	public IRecipeSlotBuilder addFluidStack(Fluid fluid, long amount, DataComponentPatch componentPatch) {
+		this.ingredients.addFluidStack(fluid, amount, componentPatch);
 		return this;
 	}
 
@@ -223,15 +223,15 @@ public class RecipeSlotBuilder implements IRecipeSlotBuilder {
 	}
 
 	public Pair<Integer, IRecipeSlotDrawable> build(Set<Integer> focusMatches, ICycler cycler) {
-		List<Optional<ITypedIngredient<?>>> allIngredients = this.ingredients.getAllIngredients();
+		List<@Nullable ITypedIngredient<?>> allIngredients = this.ingredients.getAllIngredients();
 
-		List<Optional<ITypedIngredient<?>>> focusedIngredients = null;
+		List<@Nullable ITypedIngredient<?>> focusedIngredients = null;
 
 		if (!focusMatches.isEmpty()) {
 			focusedIngredients = new ArrayList<>();
 			for (Integer i : focusMatches) {
 				if (i < allIngredients.size()) {
-					Optional<ITypedIngredient<?>> ingredient = allIngredients.get(i);
+					@Nullable ITypedIngredient<?> ingredient = allIngredients.get(i);
 					focusedIngredients.add(ingredient);
 				}
 			}
@@ -258,6 +258,10 @@ public class RecipeSlotBuilder implements IRecipeSlotBuilder {
 
 	public DisplayIngredientAcceptor getIngredientAcceptor() {
 		return ingredients;
+	}
+
+	public RecipeIngredientRole getRole() {
+		return role;
 	}
 
 	private <T> void addRenderOverride(

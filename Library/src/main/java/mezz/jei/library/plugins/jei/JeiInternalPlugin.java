@@ -36,7 +36,7 @@ public class JeiInternalPlugin implements IModPlugin {
 
 	@Override
 	public ResourceLocation getPluginUid() {
-		return new ResourceLocation(ModIds.JEI_ID, "internal");
+		return ResourceLocation.fromNamespaceAndPath(ModIds.JEI_ID, "internal");
 	}
 
 	@Override
@@ -78,8 +78,7 @@ public class JeiInternalPlugin implements IModPlugin {
 		IIngredientManager ingredientManager,
 		Registry<B> registry
 	) {
-		registry.holders()
-			.findAny()
+		registry.getAny()
 			.ifPresent(holder -> {
 				IJeiHelpers jeiHelpers = registration.getJeiHelpers();
 				IGuiHelper guiHelper = jeiHelpers.getGuiHelper();

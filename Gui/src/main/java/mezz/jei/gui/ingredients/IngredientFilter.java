@@ -11,16 +11,15 @@ import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientFilterConfig;
-import mezz.jei.common.util.JeiThreadFactory;
 import mezz.jei.gui.filter.IFilterTextSource;
-import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.IIngredientGridSource;
+import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.elements.IngredientElement;
 import mezz.jei.gui.search.ElementPrefixParser;
 import mezz.jei.gui.search.ElementSearch;
 import mezz.jei.gui.search.ElementSearchLowMem;
 import mezz.jei.gui.search.IElementSearch;
-import net.minecraft.client.Minecraft;
+import mezz.jei.gui.search.SearchStringCache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -34,17 +33,16 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 public class IngredientFilter implements
-		IIngredientGridSource,
-		IIngredientManager.IIngredientListener,
-		IIngredientVisibility.IListener,
-		IClientToggleState.IEditModeListener,
-		AutoCloseable {
+	IIngredientGridSource,
+	IIngredientManager.IIngredientListener,
+	IIngredientVisibility.IListener,
+	IClientToggleState.IEditModeListener
+{
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static final Pattern QUOTE_PATTERN = Pattern.compile("\"");
 	private static final Pattern FILTER_SPLIT_PATTERN = Pattern.compile("(-?\".*?(?:\"|$)|\\S+)");
@@ -60,22 +58,21 @@ public class IngredientFilter implements
 	private IElementSearch elementSearch;
 
 	@Nullable
-	private volatile List<IElement<?>> ingredientListCached;
+	private List<IElement<?>> ingredientListCached;
 	private final List<SourceListChangedListener> listeners = new ArrayList<>();
-	private final List<CompletableFuture<?>> tasks = Collections.synchronizedList(new ArrayList<>());
-	private volatile boolean closed = false;
 
 	public IngredientFilter(
-			IFilterTextSource filterTextSource,
-			IClientConfig clientConfig,
-			IIngredientFilterConfig config,
-			IIngredientManager ingredientManager,
-			Comparator<IListElement<?>> ingredientComparator,
-			List<IListElementInfo<?>> ingredients,
-			IModIdHelper modIdHelper,
-			IIngredientVisibility ingredientVisibility,
-			IColorHelper colorHelper,
-			IClientToggleState clientToggleState
+		IFilterTextSource filterTextSource,
+		IClientConfig clientConfig,
+		IIngredientFilterConfig config,
+		IIngredientManager ingredientManager,
+		Comparator<IListElement<?>> ingredientComparator,
+		List<IListElementInfo<?>> ingredients,
+		IModIdHelper modIdHelper,
+		IIngredientVisibility ingredientVisibility,
+		IColorHelper colorHelper,
+		IClientToggleState clientToggleState,
+		@Nullable SearchStringCache searchStringCache
 	) {
 		this.filterTextSource = filterTextSource;
 		this.clientConfig = clientConfig;
@@ -83,51 +80,34 @@ public class IngredientFilter implements
 		this.ingredientComparator = ingredientComparator;
 		this.modIdHelper = modIdHelper;
 		this.ingredientVisibility = ingredientVisibility;
-		this.elementPrefixParser = new ElementPrefixParser(ingredientManager, config, colorHelper);
+		this.elementPrefixParser = new ElementPrefixParser(ingredientManager, config, colorHelper, modIdHelper);
 
 		this.elementSearch = createElementSearch(clientConfig, elementPrefixParser);
 
-		Runnable initAction = () -> {
-			if (closed) return;
-			LOGGER.info("Adding {} ingredients", ingredients.size());
-			addIngredients(ingredients);
+		LOGGER.info("Adding {} ingredients", ingredients.size());
+		for (IListElementInfo<?> ingredient : ingredients) {
+			updateHiddenState(ingredient.getElement());
+		}
+		if (this.elementSearch instanceof ElementSearch elementSearchImpl && searchStringCache != null) {
+			elementSearchImpl.addAll(ingredients, ingredientManager, searchStringCache);
+		} else {
+			this.elementSearch.addAll(ingredients, ingredientManager);
+		}
+		LOGGER.info("Added {} ingredients", ingredients.size());
+		if (DebugConfig.isLogSuffixTreeStatsEnabled()) {
+			this.elementSearch.logStatistics();
+		}
 
-			LOGGER.info("Added {} ingredients", ingredients.size());
-			if (DebugConfig.isLogSuffixTreeStatsEnabled()) {
-				this.elementSearch.logStatistics();
-			}
-
-			this.filterTextSource.addListener(filterText -> {
-				invalidateCache();
-				notifyListenersOfChange();
-			});
-
+		this.filterTextSource.addListener(filterText -> {
 			invalidateCache();
 			notifyListenersOfChange();
-		};
-
-		// Check if we're running in a test environment or if async loading is disabled
-		if (System.getProperty("java.class.path").contains("junit") || !DebugConfig.isAsyncLoadingEnabled()) {
-			initAction.run();
-		} else {
-			CompletableFuture<Void> initTask = JeiThreadFactory.submitPluginTask(initAction);
-			tasks.add(initTask);
-			initTask.thenRun(() -> tasks.remove(initTask));
-		}
+		});
 
 		clientToggleState.addEditModeToggleListener(this);
-	}
 
-	@Override
-	public void close() {
-		LOGGER.info("Closing IngredientFilter, cancelling {} tasks", tasks.size());
-		this.closed = true;
-		synchronized (tasks) {
-			for (CompletableFuture<?> task : tasks) {
-				task.cancel(true);
-			}
-			tasks.clear();
-		}
+		// Pre-build the sorted ingredient list cache on the current thread (background thread during async loading)
+		// to avoid a main-thread freeze when the user first opens their inventory.
+		getElements();
 	}
 
 	private static IElementSearch createElementSearch(IClientConfig clientConfig, ElementPrefixParser elementPrefixParser) {
@@ -138,25 +118,11 @@ public class IngredientFilter implements
 		}
 	}
 
-	public void addIngredient(IListElementInfo<?> info) {
-		addIngredients(Collections.singletonList(info));
-	}
+	public <V> void addIngredient(IListElementInfo<V> info) {
+		IListElement<V> element = info.getElement();
+		updateHiddenState(element);
 
-	public synchronized void addIngredients(Collection<IListElementInfo<?>> ingredients) {
-		if (closed) return;
-		// Process hidden states in parallel if the list is large
-		Stream<IListElementInfo<?>> stream = (DebugConfig.isParallelSearchEnabled())
-				? ingredients.parallelStream()
-				: ingredients.stream();
-
-		stream.forEach(i -> {
-			if (closed) return;
-			updateHiddenState(i.getElement());
-		});
-
-		if (closed) return;
-		// Add to search tree in bulk
-		this.elementSearch.addAll(ingredients, ingredientManager);
+		this.elementSearch.add(info, ingredientManager);
 
 		invalidateCache();
 	}
@@ -170,7 +136,7 @@ public class IngredientFilter implements
 		Collection<IListElement<?>> ingredients = this.elementSearch.getAllIngredients();
 		this.elementSearch = createElementSearch(this.clientConfig, this.elementPrefixParser);
 		List<IListElementInfo<?>> elementInfos = IngredientListElementFactory.rebuildList(ingredientManager, ingredients, modIdHelper);
-		addIngredients(elementInfos);
+		this.elementSearch.addAll(elementInfos, ingredientManager);
 	}
 
 	@Override
@@ -181,7 +147,6 @@ public class IngredientFilter implements
 	public void updateHidden() {
 		boolean changed = false;
 		for (IListElement<?> element : this.elementSearch.getAllIngredients()) {
-			if (closed) return;
 			changed |= updateHiddenState(element);
 		}
 		if (changed) {
@@ -204,109 +169,80 @@ public class IngredientFilter implements
 	public <V> void onIngredientVisibilityChanged(ITypedIngredient<V> ingredient, boolean visible) {
 		IIngredientType<V> ingredientType = ingredient.getType();
 		IIngredientHelper<V> ingredientHelper = ingredientManager.getIngredientHelper(ingredientType);
-		this.elementSearch.findElement(ingredient, ingredientHelper)
-				.ifPresent(element -> {
-					if (element.isVisible() != visible) {
-						element.setVisible(visible);
-						invalidateCache();
-						notifyListenersOfChange();
-					}
-				});
+		IListElement<V> match = this.elementSearch.findElement(ingredient, ingredientHelper);
+		if (match != null && match.isVisible() != visible) {
+			match.setVisible(visible);
+			invalidateCache();
+			notifyListenersOfChange();
+		}
 	}
 
 	@Override
 	public List<IElement<?>> getElements() {
 		String filterText = this.filterTextSource.getFilterText();
 		filterText = filterText.toLowerCase();
-		List<IElement<?>> cached = ingredientListCached;
-		if (cached == null) {
-			cached = getIngredientListUncached(filterText)
-					.<IElement<?>>map(IngredientElement::new)
-					.toList();
-			ingredientListCached = cached;
+		if (ingredientListCached == null) {
+			ingredientListCached = getIngredientListUncached(filterText)
+				.<IElement<?>>map(IngredientElement::new)
+				.toList();
 		}
-		return cached;
+		return ingredientListCached;
 	}
 
 	public <T> List<T> getFilteredIngredients(IIngredientType<T> ingredientType) {
 		return getElements()
-				.stream()
-				.map(IElement::getTypedIngredient)
-				.map(i -> i.getIngredient(ingredientType))
-				.flatMap(Optional::stream)
-				.toList();
+			.stream()
+			.map(IElement::getTypedIngredient)
+			.map(i -> i.getIngredient(ingredientType))
+			.flatMap(Optional::stream)
+			.toList();
 	}
 
 	private Stream<ITypedIngredient<?>> getIngredientListUncached(String filterText) {
 		String[] filters = filterText.split("\\|");
 		List<SearchTokens> searchTokens = Arrays.stream(filters)
-				.map(this::parseSearchTokens)
-				.filter(s -> !s.isEmpty())
-				.toList();
+			.map(this::parseSearchTokens)
+			.filter(s -> !s.isEmpty())
+			.toList();
 
 		Stream<IListElement<?>> elementStream;
 		if (searchTokens.isEmpty()) {
-			// Use parallel stream for large ingredient lists when parallel search is enabled
-			// Parallel streams provide better performance with many ingredients
-			Collection<IListElement<?>> allIngredients = this.elementSearch.getAllIngredients();
-			if (DebugConfig.isParallelSearchEnabled() && allIngredients.size() >= 500) {
-				elementStream = allIngredients.parallelStream();
-			} else {
-				elementStream = allIngredients.stream();
-			}
+			// Use sequential stream instead of parallelStream to ensure deterministic ordering
+			// and prevent race conditions during async loading
+			elementStream = this.elementSearch.getAllIngredients().stream();
 		} else {
-			// Use parallel processing for multi-token searches
-			if (DebugConfig.isParallelSearchEnabled() && searchTokens.size() >= 2) {
-				elementStream = searchTokens.parallelStream()
-						.map(this::getSearchResults)
-						.flatMap(Set::parallelStream)
-						.distinct();
-			} else {
-				elementStream = searchTokens.stream()
-						.map(this::getSearchResults)
-						.flatMap(Set::stream)
-						.distinct();
-			}
+			elementStream = searchTokens.stream()
+				.map(this::getSearchResults)
+				.flatMap(Set::stream)
+				.distinct();
 		}
 
 		return elementStream
-				.filter(IListElement::isVisible)
-				.sorted(ingredientComparator)
-				.map(IListElement::getTypedIngredient);
+			.filter(IListElement::isVisible)
+			.sorted(ingredientComparator)
+			.map(IListElement::getTypedIngredient);
 	}
 
 	@Override
 	public <V> void onIngredientsAdded(IIngredientHelper<V> ingredientHelper, Collection<ITypedIngredient<V>> ingredients) {
-		if (closed) return;
-		Runnable addAction = () -> {
-			if (closed) return;
-			List<IListElementInfo<?>> toAdd = new ArrayList<>();
-			for (ITypedIngredient<V> value : ingredients) {
-				if (closed) return;
-				Optional<IListElement<V>> matchingElementOptional = this.elementSearch.findElement(value, ingredientHelper);
-				if (matchingElementOptional.isPresent()) {
-					IListElement<V> matchingElement = matchingElementOptional.get();
-					updateHiddenState(matchingElement);
-				} else {
-					IListElementInfo<V> listElementInfo = ListElementInfo.create(value, this.ingredientManager, modIdHelper);
-					if (listElementInfo != null) {
-						toAdd.add(listElementInfo);
+		for (ITypedIngredient<V> value : ingredients) {
+			IListElement<V> matchingElement = this.elementSearch.findElement(value, ingredientHelper);
+			if (matchingElement != null) {
+				updateHiddenState(matchingElement);
+				if (DebugConfig.isDebugModeEnabled()) {
+					LOGGER.debug("Updated ingredient: {}", ingredientHelper.getErrorInfo(value.getIngredient()));
+				}
+			} else {
+				IListElementInfo<V> listElementInfo = ListElementInfo.create(value, this.ingredientManager, modIdHelper);
+				if (listElementInfo != null) {
+					addIngredient(listElementInfo);
+					if (DebugConfig.isDebugModeEnabled()) {
+						LOGGER.debug("Added ingredient: {}", ingredientHelper.getErrorInfo(value.getIngredient()));
 					}
 				}
 			}
-			if (!toAdd.isEmpty() && !closed) {
-				addIngredients(toAdd);
-				notifyListenersOfChange();
-			}
-		};
-
-		if (System.getProperty("java.class.path").contains("junit") || !DebugConfig.isAsyncLoadingEnabled()) {
-			addAction.run();
-		} else {
-			CompletableFuture<Void> addTask = JeiThreadFactory.submitPluginTask(addAction);
-			tasks.add(addTask);
-			addTask.thenRun(() -> tasks.remove(addTask));
 		}
+		invalidateCache();
 	}
 
 	@Override
@@ -314,8 +250,7 @@ public class IngredientFilter implements
 		// ignore this, it's handled by onIngredientVisibilityChanged
 	}
 
-	private record SearchTokens(List<ElementPrefixParser.TokenInfo> toSearch,
-								List<ElementPrefixParser.TokenInfo> toRemove) {
+	private record SearchTokens(List<ElementPrefixParser.TokenInfo> toSearch, List<ElementPrefixParser.TokenInfo> toRemove) {
 		public boolean isEmpty() {
 			return toSearch.isEmpty() && toRemove.isEmpty();
 		}
@@ -339,21 +274,21 @@ public class IngredientFilter implements
 				continue;
 			}
 			this.elementPrefixParser.parseToken(string)
-					.ifPresent(result -> {
-						if (remove) {
-							searchTokens.toRemove.add(result);
-						} else {
-							searchTokens.toSearch.add(result);
-						}
-					});
+				.ifPresent(result -> {
+					if (remove) {
+						searchTokens.toRemove.add(result);
+					} else {
+						searchTokens.toSearch.add(result);
+					}
+				});
 		}
 		return searchTokens;
 	}
 
 	private Set<IListElement<?>> getSearchResults(SearchTokens searchTokens) {
 		List<Set<IListElement<?>>> resultsPerToken = searchTokens.toSearch.stream()
-				.map(this.elementSearch::getSearchResults)
-				.toList();
+			.map(this.elementSearch::getSearchResults)
+			.toList();
 		Set<IListElement<?>> results = intersection(resultsPerToken);
 
 		if (results.isEmpty() && !searchTokens.toRemove.isEmpty()) {
@@ -378,8 +313,8 @@ public class IngredientFilter implements
 	 */
 	private static <T> Set<T> intersection(List<Set<T>> sets) {
 		Set<T> smallestSet = sets.stream()
-				.min(Comparator.comparing(Set::size))
-				.orElseGet(Set::of);
+			.min(Comparator.comparing(Set::size))
+			.orElseGet(Set::of);
 
 		Set<T> results = Collections.newSetFromMap(new IdentityHashMap<>());
 		results.addAll(smallestSet);
@@ -401,21 +336,6 @@ public class IngredientFilter implements
 	}
 
 	private void notifyListenersOfChange() {
-		if (closed) return;
-		try {
-			Minecraft minecraft = Minecraft.getInstance();
-			if (minecraft != null && !minecraft.isSameThread()) {
-				minecraft.execute(this::notifyListenersOfChangeSync);
-				return;
-			}
-		} catch (Throwable ignored) {
-			// Minecraft might not be available
-		}
-		notifyListenersOfChangeSync();
-	}
-
-	private void notifyListenersOfChangeSync() {
-		if (closed) return;
 		for (SourceListChangedListener listener : listeners) {
 			listener.onSourceListChanged();
 		}

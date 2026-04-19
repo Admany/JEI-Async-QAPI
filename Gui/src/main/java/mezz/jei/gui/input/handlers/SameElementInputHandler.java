@@ -34,9 +34,9 @@ public class SameElementInputHandler implements IUserInputHandler {
 	}
 
 	@Override
-	public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+	public Optional<IUserInputHandler> handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
 		if (mouseOverable.isMouseOver(mouseX, mouseY)) {
-			return this.handler.handleMouseScrolled(mouseX, mouseY, scrollDelta);
+			return this.handler.handleMouseScrolled(mouseX, mouseY, scrollDeltaX, scrollDeltaY);
 		}
 		return Optional.empty();
 	}

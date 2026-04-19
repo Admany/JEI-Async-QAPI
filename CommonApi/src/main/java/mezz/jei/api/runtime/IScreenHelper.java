@@ -10,6 +10,7 @@ import mezz.jei.api.registration.IGuiHandlerRegistration;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.Rect2i;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,6 +21,7 @@ import java.util.stream.Stream;
  *
  * @since 11.5.0
  */
+@ApiStatus.NonExtendable
 public interface IScreenHelper {
 	/**
 	 * Get the ingredient under the mouse for the given screen.
@@ -68,7 +70,7 @@ public interface IScreenHelper {
 	 * This uses information from plugins that have registered
 	 * ghost ingredient handlers via {@link IGuiHandlerRegistration#addGhostIngredientHandler}
 	 *
-	 * @since 15.11.2
+	 * @since 19.8.2
 	 */
 	<T extends Screen> List<IGhostIngredientHandler<T>> getGhostIngredientHandlers(T guiScreen);
 
@@ -80,12 +82,12 @@ public interface IScreenHelper {
 	 *
 	 * @since 11.5.0
 	 */
-	@Deprecated(since = "15.11.2", forRemoval = true)
+	@Deprecated(since = "19.8.2", forRemoval = true)
 	default <T extends Screen> Optional<IGhostIngredientHandler<T>> getGhostIngredientHandler(T guiScreen) {
 		List<IGhostIngredientHandler<T>> handlers = getGhostIngredientHandlers(guiScreen);
 		if (handlers.isEmpty()) {
 			return Optional.empty();
 		}
-		return Optional.of(handlers.get(0));
+		return Optional.of(handlers.getFirst());
 	}
 }

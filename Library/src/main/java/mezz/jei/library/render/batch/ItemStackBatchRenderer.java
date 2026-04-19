@@ -19,7 +19,6 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
-import org.joml.Matrix4f;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -69,6 +68,7 @@ public final class ItemStackBatchRenderer {
 		}
 
 		if (!useBlockLight.isEmpty()) {
+			Lighting.setupFor3DItems();
 			for (ElementWithModel element : useBlockLight) {
 				renderItem(guiGraphics, itemRenderer, element.model(), element.stack(), element.x(), element.y());
 			}
@@ -106,8 +106,7 @@ public final class ItemStackBatchRenderer {
 		PoseStack poseStack = guiGraphics.pose();
 		poseStack.pushPose();
 		poseStack.translate((float) (x + 8), (float) (y + 8), 150f);
-		poseStack.mulPoseMatrix((new Matrix4f()).scaling(1.0F, -1.0F, 1.0F));
-		poseStack.scale(16.0F, 16.0F, 16.0F);
+		poseStack.scale(16.0F, -16.0F, 16.0F);
 
 		try {
 			itemRenderer.render(
@@ -124,7 +123,7 @@ public final class ItemStackBatchRenderer {
 			CrashReport crashreport = CrashReport.forThrowable(throwable, "Rendering item");
 			CrashReportCategory crashreportcategory = crashreport.addCategory("Item being rendered");
 			crashreportcategory.setDetail("Item Type", () -> String.valueOf(itemStack.getItem()));
-			crashreportcategory.setDetail("Item NBT", () -> String.valueOf(itemStack.getTag()));
+			crashreportcategory.setDetail("Item Components", () -> String.valueOf(itemStack.getComponents()));
 			crashreportcategory.setDetail("Item Foil", () -> String.valueOf(itemStack.hasFoil()));
 			throw new ReportedException(crashreport);
 		}

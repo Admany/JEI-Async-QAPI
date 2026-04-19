@@ -1,17 +1,10 @@
 package mezz.jei.library.load.registration;
 
 import mezz.jei.api.ingredients.IIngredientTypeWithSubtypes;
-import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
-import mezz.jei.api.ingredients.subtypes.UidContext;
+import mezz.jei.api.ingredients.subtypes.ISubtypeInterpreter;
 import mezz.jei.api.registration.ISubtypeRegistration;
-import mezz.jei.library.ingredients.subtypes.SubtypeInterpreters;
-import mezz.jei.common.platform.IPlatformFluidHelperInternal;
-import mezz.jei.common.platform.Services;
 import mezz.jei.common.util.ErrorUtil;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.material.Fluid;
+import mezz.jei.library.ingredients.subtypes.SubtypeInterpreters;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -21,28 +14,22 @@ public class SubtypeRegistration implements ISubtypeRegistration {
 	private final SubtypeInterpreters interpreters = new SubtypeInterpreters();
 
 	@Override
-	public void useNbtForSubtypes(Item... items) {
-		for (Item item : items) {
-			registerSubtypeInterpreter(item, AllNbt.INSTANCE);
+	public <B, I> void registerSubtypeInterpreter(IIngredientTypeWithSubtypes<B, I> type, B base, ISubtypeInterpreter<I> interpreter) {
+		ErrorUtil.checkNotNull(type, "type");
+		ErrorUtil.checkNotNull(base, "base");
+		ErrorUtil.checkNotNull(interpreter, "interpreter");
+		Class<? extends B> ingredientBaseClass = type.getIngredientBaseClass();
+		if (!ingredientBaseClass.isInstance(base)) {
+			throw new IllegalArgumentException(String.format("base (%s) must be an instance of %s", base.getClass(), ingredientBaseClass));
+		}
+		if (!this.interpreters.addInterpreter(type, base, interpreter)) {
+			LOGGER.error("An interpreter is already registered for this: {}", base, new IllegalArgumentException());
 		}
 	}
 
+	@SuppressWarnings("removal")
 	@Override
-	public void useNbtForSubtypes(Fluid... fluids) {
-		IPlatformFluidHelperInternal<?> fluidHelper = Services.PLATFORM.getFluidHelper();
-		useNbtForSubtypes(fluidHelper, fluids);
-	}
-
-	private <T> void useNbtForSubtypes(IPlatformFluidHelperInternal<T> fluidHelper, Fluid... fluids) {
-		IIngredientTypeWithSubtypes<Fluid, T> type = fluidHelper.getFluidIngredientType();
-		IIngredientSubtypeInterpreter<T> allNbt = fluidHelper.getAllNbtSubtypeInterpreter();
-		for (Fluid fluid : fluids) {
-			registerSubtypeInterpreter(type, fluid, allNbt);
-		}
-	}
-
-	@Override
-	public <B, I> void registerSubtypeInterpreter(IIngredientTypeWithSubtypes<B, I> type, B base, IIngredientSubtypeInterpreter<I> interpreter) {
+	public <B, I> void registerSubtypeInterpreter(IIngredientTypeWithSubtypes<B, I> type, B base, mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter<I> interpreter) {
 		ErrorUtil.checkNotNull(type, "type");
 		ErrorUtil.checkNotNull(base, "base");
 		ErrorUtil.checkNotNull(interpreter, "interpreter");
@@ -57,21 +44,5 @@ public class SubtypeRegistration implements ISubtypeRegistration {
 
 	public SubtypeInterpreters getInterpreters() {
 		return interpreters;
-	}
-
-	private static class AllNbt implements IIngredientSubtypeInterpreter<ItemStack> {
-		public static final AllNbt INSTANCE = new AllNbt();
-
-		private AllNbt() {
-		}
-
-		@Override
-		public String apply(ItemStack itemStack, UidContext context) {
-			CompoundTag nbtTagCompound = itemStack.getTag();
-			if (nbtTagCompound == null || nbtTagCompound.isEmpty()) {
-				return IIngredientSubtypeInterpreter.NONE;
-			}
-			return nbtTagCompound.toString();
-		}
 	}
 }

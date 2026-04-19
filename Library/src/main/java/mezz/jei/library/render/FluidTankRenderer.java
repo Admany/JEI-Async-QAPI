@@ -3,13 +3,12 @@ package mezz.jei.library.render;
 import com.google.common.base.Preconditions;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.ingredients.IIngredientRenderer;
 import mezz.jei.api.ingredients.IIngredientTypeWithSubtypes;
-import mezz.jei.common.gui.JeiTooltip;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
@@ -24,6 +23,7 @@ import net.minecraft.world.level.material.Fluids;
 import org.joml.Matrix4f;
 
 import java.text.NumberFormat;
+import java.util.ArrayList;
 import java.util.List;
 
 public class FluidTankRenderer<T> implements IIngredientRenderer<T> {
@@ -149,30 +149,23 @@ public class FluidTankRenderer<T> implements IIngredientRenderer<T> {
 
 		RenderSystem.setShader(GameRenderer::getPositionTexShader);
 
-		Tesselator tessellator = Tesselator.getInstance();
-		BufferBuilder bufferBuilder = tessellator.getBuilder();
-		bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-		bufferBuilder.vertex(matrix, xCoord, yCoord + 16, zLevel).uv(uMin, vMax).endVertex();
-		bufferBuilder.vertex(matrix, xCoord + 16 - maskRight, yCoord + 16, zLevel).uv(uMax, vMax).endVertex();
-		bufferBuilder.vertex(matrix, xCoord + 16 - maskRight, yCoord + maskTop, zLevel).uv(uMax, vMin).endVertex();
-		bufferBuilder.vertex(matrix, xCoord, yCoord + maskTop, zLevel).uv(uMin, vMin).endVertex();
-		tessellator.end();
+		Tesselator tesselator = Tesselator.getInstance();
+		BufferBuilder bufferBuilder = tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+		bufferBuilder.addVertex(matrix, xCoord, yCoord + 16, zLevel).setUv(uMin, vMax);
+		bufferBuilder.addVertex(matrix, xCoord + 16 - maskRight, yCoord + 16, zLevel).setUv(uMax, vMax);
+		bufferBuilder.addVertex(matrix, xCoord + 16 - maskRight, yCoord + maskTop, zLevel).setUv(uMax, vMin);
+		bufferBuilder.addVertex(matrix, xCoord, yCoord + maskTop, zLevel).setUv(uMin, vMin);
+		BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
 	}
 
-	@SuppressWarnings("removal")
 	@Override
 	public List<Component> getTooltip(T fluidStack, TooltipFlag tooltipFlag) {
-		JeiTooltip jeiTooltip = new JeiTooltip();
-		getTooltip(jeiTooltip, fluidStack, tooltipFlag);
-		return jeiTooltip.toLegacyToComponents();
-	}
+		List<Component> tooltip = new ArrayList<>();
 
-	@Override
-	public void getTooltip(ITooltipBuilder tooltip, T fluidStack, TooltipFlag tooltipFlag) {
 		IIngredientTypeWithSubtypes<Fluid, T> type = fluidHelper.getFluidIngredientType();
 		Fluid fluidType = type.getBase(fluidStack);
 		if (fluidType.isSame(Fluids.EMPTY)) {
-			return;
+			return tooltip;
 		}
 
 		fluidHelper.getTooltip(tooltip, fluidStack, tooltipFlag);
@@ -187,6 +180,8 @@ public class FluidTankRenderer<T> implements IIngredientRenderer<T> {
 			MutableComponent amountString = Component.translatable("jei.tooltip.liquid.amount", nf.format(milliBuckets));
 			tooltip.add(amountString.withStyle(ChatFormatting.GRAY));
 		}
+
+		return tooltip;
 	}
 
 	@Override

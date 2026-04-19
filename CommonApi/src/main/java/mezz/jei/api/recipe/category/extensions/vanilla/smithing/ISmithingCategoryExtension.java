@@ -9,6 +9,7 @@ import mezz.jei.api.recipe.category.extensions.IRecipeCategoryExtension;
 import mezz.jei.api.registration.IVanillaCategoryExtensionRegistration;
 import net.minecraft.world.item.crafting.SmithingRecipe;
 
+
 /**
  * Implement this interface instead of just {@link IRecipeCategoryExtension}
  * to have your recipe extension work as part of {@link RecipeTypes#SMITHING} recipe.
@@ -17,7 +18,7 @@ import net.minecraft.world.item.crafting.SmithingRecipe;
  * {@link IVanillaCategoryExtensionRegistration#getSmithingCategory()}
  * and then registering it with {@link IExtendableSmithingRecipeCategory#addExtension(Class, ISmithingCategoryExtension)}.
  *
- * @since 15.12.0
+ * @since 19.5.0
  */
 public interface ISmithingCategoryExtension<R extends SmithingRecipe> {
 	/**
@@ -27,7 +28,7 @@ public interface ISmithingCategoryExtension<R extends SmithingRecipe> {
 	 * {@link net.minecraft.world.item.crafting.SmithingTrimRecipe#template}
 	 * {@link net.minecraft.world.item.crafting.SmithingTransformRecipe#template}
 	 *
-	 * @since 15.12.0
+	 * @since 19.5.0
 	 */
 	<T extends IIngredientAcceptor<T>> void setTemplate(R recipe, T ingredientAcceptor);
 
@@ -38,7 +39,7 @@ public interface ISmithingCategoryExtension<R extends SmithingRecipe> {
 	 * {@link net.minecraft.world.item.crafting.SmithingTrimRecipe#base}
 	 * {@link net.minecraft.world.item.crafting.SmithingTransformRecipe#base}
 	 *
-	 * @since 15.12.0
+	 * @since 19.5.0
 	 */
 	<T extends IIngredientAcceptor<T>> void setBase(R recipe, T ingredientAcceptor);
 
@@ -49,7 +50,7 @@ public interface ISmithingCategoryExtension<R extends SmithingRecipe> {
 	 * {@link net.minecraft.world.item.crafting.SmithingTrimRecipe#addition}
 	 * {@link net.minecraft.world.item.crafting.SmithingTransformRecipe#addition}
 	 *
-	 * @since 15.12.0
+	 * @since 19.5.0
 	 */
 	<T extends IIngredientAcceptor<T>> void setAddition(R recipe, T ingredientAcceptor);
 
@@ -61,7 +62,7 @@ public interface ISmithingCategoryExtension<R extends SmithingRecipe> {
 	 * {@link net.minecraft.world.item.crafting.SmithingTrimRecipe#assemble}
 	 * {@link net.minecraft.world.item.crafting.SmithingTransformRecipe#assemble}
 	 *
-	 * @since 15.12.1
+	 * @since 19.8.3
 	 */
 	default <T extends IIngredientAcceptor<T>> void setOutput(R recipe, T ingredientAcceptor) {
 
@@ -88,7 +89,7 @@ public interface ISmithingCategoryExtension<R extends SmithingRecipe> {
 	 *
 	 * @see IRecipeCategory#onDisplayedIngredientsUpdate
 	 *
-	 * @since 15.16.1
+	 * @since 19.14.1
 	 */
 	default void onDisplayedIngredientsUpdate(
 		R recipe,

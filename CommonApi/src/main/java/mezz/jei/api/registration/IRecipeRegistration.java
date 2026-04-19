@@ -36,7 +36,7 @@ public interface IRecipeRegistration {
 	 * @since 9.3.1
 	 * @deprecated use {@link IJeiHelpers#getIngredientVisibility()}
 	 */
-	@Deprecated(since = "15.19.1", forRemoval = true)
+	@Deprecated(since = "19.18.4", forRemoval = true)
 	default IIngredientVisibility getIngredientVisibility() {
 		return getJeiHelpers().getIngredientVisibility();
 	}
@@ -85,7 +85,7 @@ public interface IRecipeRegistration {
 	 *                              New lines can be added with "\n" or by giving multiple descriptions.
 	 *                              Long lines are wrapped automatically.
 	 *                              Very long entries will span multiple pages automatically.
-	 * @since 15.19.4
+	 * @since 19.18.3
 	 */
 	default void addIngredientInfo(ItemLike itemLike, Component... descriptionComponents) {
 		addIngredientInfo(itemLike.asItem().getDefaultInstance(), VanillaTypes.ITEM_STACK, descriptionComponents);

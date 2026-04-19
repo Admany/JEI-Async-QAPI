@@ -4,10 +4,10 @@ import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.IngredientSortStage;
+import mezz.jei.common.util.RegistryUtil;
 import mezz.jei.gui.config.IngredientTypeSortingConfig;
 import mezz.jei.gui.config.ModNameSortingConfig;
 import net.minecraft.core.HolderSet.ListBacked;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
@@ -69,7 +69,7 @@ public class IngredientSorterComparators {
 	}
 
 	private static Comparator<IListElementInfo<?>> getAlphabeticalComparator() {
-		return Comparator.comparing(i -> i.getNames().get(0));
+		return Comparator.comparing(i -> i.getNames().getFirst());
 	}
 
 	private Comparator<IListElementInfo<?>> getModNameComparator() {
@@ -166,7 +166,8 @@ public class IngredientSorterComparators {
 			return 0;
 		}
 		TagKey<Item> tagKey = TagKey.create(Registries.ITEM, tagId);
-		return BuiltInRegistries.ITEM.getTag(tagKey)
+		return RegistryUtil.getRegistry(Registries.ITEM)
+			.getTag(tagKey)
 			.map(ListBacked::size)
 			.orElse(0);
 	}

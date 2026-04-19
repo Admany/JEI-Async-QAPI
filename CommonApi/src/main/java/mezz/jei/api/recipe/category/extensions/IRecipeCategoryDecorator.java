@@ -60,7 +60,7 @@ public interface IRecipeCategoryDecorator<T> {
 	 * @since 15.1.0
 	 * @deprecated use {@link #decorateTooltips(ITooltipBuilder, Object, IRecipeCategory, IRecipeSlotsView, double, double)}
 	 */
-	@Deprecated(since = "15.8.4", forRemoval = true)
+	@Deprecated(since = "19.5.4", forRemoval = true)
 	default List<Component> decorateExistingTooltips(List<Component> tooltips, T recipe, IRecipeCategory<T> recipeCategory, IRecipeSlotsView recipeSlotsView, double mouseX, double mouseY) {
 		return tooltips;
 	}
@@ -76,7 +76,7 @@ public interface IRecipeCategoryDecorator<T> {
 	 * @param mouseX          the X position of the mouse, relative to the recipe.
 	 * @param mouseY          the Y position of the mouse, relative to the recipe.
 	 *
-	 * @since 15.8.4
+	 * @since 19.5.4
 	 */
 	default void decorateTooltips(ITooltipBuilder tooltip, T recipe, IRecipeCategory<T> recipeCategory, IRecipeSlotsView recipeSlotsView, double mouseX, double mouseY) {
 

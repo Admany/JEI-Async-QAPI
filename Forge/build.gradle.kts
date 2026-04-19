@@ -67,6 +67,11 @@ java {
 	withSourcesJar()
 }
 
+// Hack fix: FG can't resolve deps like lwjgl-freetype-3.3.3-natives-macos-patch.jar without this
+repositories {
+	maven("https://libraries.minecraft.net")
+}
+
 dependencies {
 	"minecraft"(
 		group = "net.minecraftforge",
@@ -74,7 +79,7 @@ dependencies {
 		version = "${minecraftVersion}-${forgeVersion}"
 	)
 	dependencyProjects.forEach {
-		implementation(it)
+		compileOnly(it)
 	}
 	testImplementation(
 		group = "org.junit.jupiter",
@@ -86,10 +91,20 @@ dependencies {
 		name = "junit-jupiter-engine",
 		version = jUnitVersion
 	)
+
+	// Hack fix for now, force jopt-simple to be exactly 5.0.4 because Mojang ships that version, but some transitive dependencies request 6.0+
+	implementation("net.sf.jopt-simple:jopt-simple:5.0.4") {
+		version {
+			strictly("5.0.4")
+		}
+	}
 }
 
 minecraft {
-	mappings("parchment", parchmentVersionForge)
+	mappings("official", minecraftVersion)
+
+	// use Official mappings at runtime
+	reobf = false
 
 	copyIdeResources.set(true)
 
@@ -103,9 +118,6 @@ minecraft {
 			mods {
 				create(modId) {
 					source(sourceSets.main.get())
-					for (p in dependencyProjects) {
-						source(p.sourceSets.main.get())
-					}
 				}
 			}
 		}
@@ -128,23 +140,28 @@ minecraft {
 			mods {
 				create(modId) {
 					source(sourceSets.main.get())
-					for (p in dependencyProjects) {
-						source(p.sourceSets.main.get())
-					}
 				}
 			}
 		}
 	}
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    dependencyProjects.forEach {
+        source(it.sourceSets.main.get().allSource)
+    }
+}
+
+tasks.withType<ProcessResources> {
+    dependencyProjects.forEach {
+        from(it.sourceSets.main.get().resources)
+    }
+}
+
 tasks.jar {
 	from(sourceSets.main.get().output)
-	for (p in dependencyProjects) {
-		from(p.sourceSets.main.get().output)
-	}
 
 	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-	finalizedBy("reobfJar")
 }
 
 val sourcesJarTask = tasks.named<Jar>("sourcesJar") {
@@ -211,16 +228,6 @@ publishing {
 			artifactId = baseArchivesName
 			artifact(tasks.jar.get())
 			artifact(sourcesJarTask.get())
-
-			pom.withXml {
-				val dependenciesNode = asNode().appendNode("dependencies")
-				dependencyProjects.forEach {
-					val dependencyNode = dependenciesNode.appendNode("dependency")
-					dependencyNode.appendNode("groupId", it.group)
-					dependencyNode.appendNode("artifactId", it.base.archivesName.get())
-					dependencyNode.appendNode("version", it.version)
-				}
-			}
 		}
 	}
 	repositories {
@@ -233,10 +240,17 @@ publishing {
 
 idea {
 	module {
-		for (fileName in listOf("run", "out", "logs")) {
+		for (fileName in listOf("build", "run", "out", "logs")) {
 			excludeDirs.add(file(fileName))
 		}
 	}
+}
+
+// Required because FG, copied from the MDK
+sourceSets.forEach {
+    val outputDir = layout.buildDirectory.file("sourcesSets/${it.name}").get().asFile
+    it.output.setResourcesDir(outputDir)
+    it.java.destinationDirectory.set(outputDir)
 }
 
 tasks.withType<DownloadMavenArtifact> {

@@ -5,6 +5,7 @@ import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
+import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.gui.overlay.elements.IElement;
@@ -12,15 +13,15 @@ import mezz.jei.gui.overlay.elements.RecipeBookmarkElement;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Optional;
+import java.util.Objects;
 
 public class RecipeBookmark<R, I> implements IBookmark {
 	private final IElement<I> element;
 	private final IRecipeCategory<R> recipeCategory;
 	private final R recipe;
 	private final ResourceLocation recipeUid;
-	private final ITypedIngredient<I> recipeOutput;
-	private final RecipeIngredientRole displayRole;
+	private final ITypedIngredient<I> displayIngredient;
+	private final boolean displayIsOutput;
 	private boolean visible = true;
 
 	@Nullable
@@ -40,14 +41,15 @@ public class RecipeBookmark<R, I> implements IBookmark {
 			ITypedIngredient<?> output = findFirst(recipeSlotsView, RecipeIngredientRole.OUTPUT);
 			if (output != null) {
 				output = ingredientManager.normalizeTypedIngredient(output);
-				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, output, RecipeIngredientRole.OUTPUT);
+				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, output, true);
 			}
 		}
+
 		{
 			ITypedIngredient<?> input = findFirst(recipeSlotsView, RecipeIngredientRole.INPUT);
 			if (input != null) {
 				input = ingredientManager.normalizeTypedIngredient(input);
-				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, input, RecipeIngredientRole.INPUT);
+				return new RecipeBookmark<>(recipeCategory, recipe, recipeUid, input, false);
 			}
 		}
 
@@ -60,9 +62,10 @@ public class RecipeBookmark<R, I> implements IBookmark {
 			if (slotView.getRole() != role) {
 				continue;
 			}
-			Optional<ITypedIngredient<?>> outputOptional = slotView.getAllIngredients().findFirst();
-			if (outputOptional.isPresent()) {
-				return outputOptional.get();
+			for (ITypedIngredient<?> ingredient : slotView.getAllIngredientsList()) {
+				if (ingredient != null) {
+					return ingredient;
+				}
 			}
 		}
 		return null;
@@ -72,31 +75,36 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		IRecipeCategory<R> recipeCategory,
 		R recipe,
 		ResourceLocation recipeUid,
-		ITypedIngredient<I> recipeOutput,
-		RecipeIngredientRole displayRole
+		ITypedIngredient<I> displayIngredient,
+		boolean displayIsOutput
 	) {
 		this.recipeCategory = recipeCategory;
 		this.recipe = recipe;
 		this.recipeUid = recipeUid;
-		this.recipeOutput = recipeOutput;
+		this.displayIngredient = displayIngredient;
 		this.element = new RecipeBookmarkElement<>(this);
-		this.displayRole = displayRole;
+		this.displayIsOutput = displayIsOutput;
+	}
+
+	@Override
+	public BookmarkType getType() {
+		return BookmarkType.RECIPE;
 	}
 
 	public IRecipeCategory<R> getRecipeCategory() {
 		return recipeCategory;
 	}
 
-	public ResourceLocation getRecipeUid() {
-		return recipeUid;
-	}
-
 	public R getRecipe() {
 		return recipe;
 	}
 
-	public ITypedIngredient<I> getRecipeOutput() {
-		return recipeOutput;
+	public ITypedIngredient<I> getDisplayIngredient() {
+		return displayIngredient;
+	}
+
+	public boolean isDisplayIsOutput() {
+		return displayIsOutput;
 	}
 
 	@Override
@@ -114,19 +122,40 @@ public class RecipeBookmark<R, I> implements IBookmark {
 		this.visible = visible;
 	}
 
-	public RecipeIngredientRole getDisplayRole() {
-		return displayRole;
-	}
-
 	@Override
 	public int hashCode() {
-		return recipeUid.hashCode();
+		return Objects.hash(recipeUid, recipeCategory.getRecipeType());
 	}
 
 	@Override
 	public boolean equals(Object obj) {
 		if (obj instanceof RecipeBookmark<?, ?> recipeBookmark) {
-			return recipeBookmark.recipeUid.equals(recipeUid);
+			return recipeBookmark.recipeUid.equals(recipeUid) &&
+				recipeCategory.getRecipeType().equals(recipeBookmark.recipeCategory.getRecipeType());
+		}
+		return false;
+	}
+
+	@Override
+	public String toString() {
+		return "RecipeBookmark{" +
+			"recipeCategory=" + recipeCategory.getRecipeType() +
+			", recipe=" + recipe +
+			", recipeUid=" + recipeUid +
+			", displayIngredient=" + displayIngredient +
+			", visible=" + visible +
+			'}';
+	}
+
+	public <T> boolean isRecipe(RecipeType<T> otherType, T otherRecipe) {
+		RecipeType<R> recipeType = recipeCategory.getRecipeType();
+		if (recipeType.equals(otherType)) {
+			Class<? extends R> recipeClass = recipeType.getRecipeClass();
+			if (recipeClass.isInstance(otherRecipe)) {
+				R castRecipe = recipeClass.cast(otherRecipe);
+				ResourceLocation otherUid = recipeCategory.getRegistryName(castRecipe);
+				return recipeUid.equals(otherUid);
+			}
 		}
 		return false;
 	}

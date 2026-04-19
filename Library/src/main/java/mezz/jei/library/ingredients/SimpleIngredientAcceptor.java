@@ -9,7 +9,8 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.platform.IPlatformFluidHelperInternal;
 import mezz.jei.common.platform.Services;
 import mezz.jei.common.util.ErrorUtil;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.world.level.material.Fluid;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
@@ -37,9 +38,9 @@ public class SimpleIngredientAcceptor implements IIngredientAcceptor<SimpleIngre
 		Preconditions.checkNotNull(ingredients, "ingredients");
 
 		for (Object ingredient : ingredients) {
-			Optional<ITypedIngredient<?>> typedIngredient = TypedIngredient.createAndFilterInvalid(ingredientManager, ingredient, false);
-			if (typedIngredient.isPresent()) {
-				this.ingredients.add(typedIngredient.get());
+			@Nullable ITypedIngredient<?> typedIngredient = TypedIngredient.createAndFilterInvalid(ingredientManager, ingredient, false);
+			if (typedIngredient != null) {
+				this.ingredients.add(typedIngredient);
 			}
 		}
 
@@ -51,11 +52,11 @@ public class SimpleIngredientAcceptor implements IIngredientAcceptor<SimpleIngre
 		ErrorUtil.checkNotNull(ingredientType, "ingredientType");
 		Preconditions.checkNotNull(ingredients, "ingredients");
 
-		List<Optional<ITypedIngredient<T>>> typedIngredients = TypedIngredient.createAndFilterInvalidList(this.ingredientManager, ingredientType, ingredients, false);
+		List<@Nullable  ITypedIngredient<T>> typedIngredients = TypedIngredient.createAndFilterInvalidList(this.ingredientManager, ingredientType, ingredients, false);
 
-		for (Optional<ITypedIngredient<T>> typedIngredientOptional : typedIngredients) {
-			if (typedIngredientOptional.isPresent()) {
-				this.ingredients.add(typedIngredientOptional.get());
+		for (@Nullable  ITypedIngredient<T> typedIngredientOptional : typedIngredients) {
+			if (typedIngredientOptional != null) {
+				this.ingredients.add(typedIngredientOptional);
 			}
 		}
 
@@ -75,34 +76,37 @@ public class SimpleIngredientAcceptor implements IIngredientAcceptor<SimpleIngre
 	public <I> SimpleIngredientAcceptor addTypedIngredient(ITypedIngredient<I> typedIngredient) {
 		ErrorUtil.checkNotNull(typedIngredient, "typedIngredient");
 
-		Optional<ITypedIngredient<I>> copy = TypedIngredient.deepCopy(ingredientManager, typedIngredient);
-		if (copy.isPresent()) {
-			this.ingredients.add(copy.get());
+		@Nullable ITypedIngredient<I> copy = TypedIngredient.defensivelyCopyTypedIngredientFromApi(ingredientManager, typedIngredient);
+		if (copy != null) {
+			this.ingredients.add(copy);
 		}
 
 		return this;
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public SimpleIngredientAcceptor addFluidStack(Fluid fluid) {
 		IPlatformFluidHelperInternal<?> fluidHelper = Services.PLATFORM.getFluidHelper();
-		return addFluidInternal(fluidHelper, fluid, fluidHelper.bucketVolume(), null);
+		return addFluidInternal(fluidHelper, fluid.builtInRegistryHolder(), fluidHelper.bucketVolume(), DataComponentPatch.EMPTY);
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public SimpleIngredientAcceptor addFluidStack(Fluid fluid, long amount) {
 		IPlatformFluidHelperInternal<?> fluidHelper = Services.PLATFORM.getFluidHelper();
-		return addFluidInternal(fluidHelper, fluid, amount, null);
+		return addFluidInternal(fluidHelper, fluid.builtInRegistryHolder(), amount, DataComponentPatch.EMPTY);
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
-	public SimpleIngredientAcceptor addFluidStack(Fluid fluid, long amount, CompoundTag tag) {
+	public SimpleIngredientAcceptor addFluidStack(Fluid fluid, long amount, DataComponentPatch component) {
 		IPlatformFluidHelperInternal<?> fluidHelper = Services.PLATFORM.getFluidHelper();
-		return addFluidInternal(fluidHelper, fluid, amount, tag);
+		return addFluidInternal(fluidHelper, fluid.builtInRegistryHolder(), amount, component);
 	}
 
-	private <T> SimpleIngredientAcceptor addFluidInternal(IPlatformFluidHelperInternal<T> fluidHelper, Fluid fluid, long amount, @Nullable CompoundTag tag) {
-		T fluidStack = fluidHelper.create(fluid, amount, tag);
+	private <T> SimpleIngredientAcceptor addFluidInternal(IPlatformFluidHelperInternal<T> fluidHelper, Holder<Fluid> fluidHolder, long amount, DataComponentPatch component) {
+		T fluidStack = fluidHelper.create(fluidHolder, amount, component);
 		IIngredientTypeWithSubtypes<Fluid, T> fluidIngredientType = fluidHelper.getFluidIngredientType();
 		addIngredientInternal(fluidIngredientType, fluidStack);
 		return this;
@@ -134,9 +138,9 @@ public class SimpleIngredientAcceptor implements IIngredientAcceptor<SimpleIngre
 		if (ingredient == null) {
 			return;
 		}
-		Optional<ITypedIngredient<T>> typedIngredient = TypedIngredient.createAndFilterInvalid(this.ingredientManager, ingredientType, ingredient, false);
-		if (typedIngredient.isPresent()) {
-			this.ingredients.add(typedIngredient.get());
+		@Nullable  ITypedIngredient<T> typedIngredient = TypedIngredient.createAndFilterInvalid(this.ingredientManager, ingredientType, ingredient, false);
+		if (typedIngredient != null) {
+			this.ingredients.add(typedIngredient);
 		}
 	}
 

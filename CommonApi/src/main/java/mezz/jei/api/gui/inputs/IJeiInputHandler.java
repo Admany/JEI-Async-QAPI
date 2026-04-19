@@ -7,7 +7,7 @@ import net.minecraft.client.gui.navigation.ScreenRectangle;
  * An interface for things that want to receive user inputs like other JEI elements.
  * If you want to do vanilla-like input handling instead, use {@link IJeiGuiEventListener}.
  *
- * @since 15.9.0
+ * @since 19.6.0
  */
 public interface IJeiInputHandler {
 	/**
@@ -16,7 +16,7 @@ public interface IJeiInputHandler {
 	 * Mouse coordinates passed to this handler are translated so that when
 	 * the mouse is at this area's position, it is passed to this handler as if it were (0, 0).
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	ScreenRectangle getArea();
 
@@ -57,7 +57,7 @@ public interface IJeiInputHandler {
 	 * @param input the current input, it may be a click or a keyboard key
 	 * @return true if the input was handled (or could be handled), false otherwise
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	default boolean handleInput(double mouseX, double mouseY, IJeiUserInput input) {
 		return false;
@@ -69,12 +69,13 @@ public interface IJeiInputHandler {
 	 *
 	 * @param mouseX   the X position of the mouse, relative to the parent element.
 	 * @param mouseY   the Y position of the mouse, relative to the parent element.
-	 * @param scrollDelta the amount of vertical scrolling.
+	 * @param scrollDeltaX the amount of horizontal scrolling.
+	 * @param scrollDeltaY the amount of vertical scrolling.
 	 * @return true if the scrolling was handled, false otherwise.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
-	default boolean handleMouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+	default boolean handleMouseScrolled(double mouseX, double mouseY, double scrollDeltaX, double scrollDeltaY) {
 		return false;
 	}
 
@@ -89,7 +90,7 @@ public interface IJeiInputHandler {
 	 * @param dragY the amount of vertical dragging.
 	 * @return true if the scrolling was handled, false otherwise.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	default boolean handleMouseDragged(double mouseX, double mouseY, InputConstants.Key mouseKey, double dragX, double dragY) {
 		return false;
@@ -101,7 +102,7 @@ public interface IJeiInputHandler {
 	 * @param mouseX the X position of the mouse, relative to the parent element.
 	 * @param mouseY the Y position of the mouse, relative to the parent element.
 	 *
-	 * @since 15.9.0
+	 * @since 19.6.0
 	 */
 	default void handleMouseMoved(double mouseX, double mouseY) {
 

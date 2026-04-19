@@ -58,7 +58,7 @@ public interface IGuiHelper {
 	 * @param tickTimer      a timer to help render things that normally depend on ticks
 	 * @param startDirection the direction that the animation starts drawing the texture
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.8
 	 */
 	IDrawableAnimated createAnimatedDrawable(IDrawableStatic drawable, ITickTimer tickTimer, IDrawableAnimated.StartDirection startDirection);
 
@@ -70,56 +70,56 @@ public interface IGuiHelper {
 	/**
 	 * Returns a vanilla-style large output slot for drawing on guis.
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.8
 	 */
 	IDrawableStatic getOutputSlot();
 
 	/**
 	 * Returns a vanilla-style recipe arrow for drawing on guis.
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.8
 	 */
 	IDrawableStatic getRecipeArrow();
 
 	/**
 	 * Returns a vanilla-style filled (white) recipe arrow for drawing on guis.
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.8
 	 */
 	IDrawableStatic getRecipeArrowFilled();
 
 	/**
 	 * Returns a vanilla-style recipe arrow that fills over time, for drawing on guis.
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.8
 	 */
 	IDrawableAnimated createAnimatedRecipeArrow(int ticksPerCycle);
 
 	/**
 	 * Returns a vanilla-style grey plus sign for drawing on guis.
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.8
 	 */
 	IDrawableStatic getRecipePlusSign();
 
 	/**
 	 * Returns a vanilla-style recipe flame (red) for drawing on guis.
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.8
 	 */
 	IDrawableStatic getRecipeFlameFilled();
 
 	/**
 	 * Returns a vanilla-style recipe flame background (grey) for drawing on guis.
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.8
 	 */
 	IDrawableStatic getRecipeFlameEmpty();
 
 	/**
 	 * Returns a vanilla-style recipe flame that empties over time, for drawing on guis.
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.8
 	 */
 	IDrawableAnimated createAnimatedRecipeFlame(int ticksPerCycle);
 
@@ -144,7 +144,7 @@ public interface IGuiHelper {
 	 * matching the one JEI draws in the ingredient list.
 	 *
 	 * @see #createDrawableIngredient(IIngredientType, Object) for other ingredient types.
-	 * @since 15.19.4
+	 * @since 19.18.1
 	 */
 	default IDrawable createDrawableItemLike(ItemLike itemLike) {
 		return createDrawableIngredient(VanillaTypes.ITEM_STACK, itemLike.asItem().getDefaultInstance());
@@ -160,7 +160,7 @@ public interface IGuiHelper {
 	/**
 	 * Returns a 16x16 drawable for the given ingredient,
 	 * matching the one JEI draws in the ingredient list.
-	 * @since 15.5.0
+	 * @since 19.1.0
 	 */
 	<V> IDrawable createDrawableIngredient(ITypedIngredient<V> ingredient);
 
@@ -176,45 +176,46 @@ public interface IGuiHelper {
 	 *
 	 * Add ingredients to it using {@link IRecipeLayoutBuilder#addSlotToWidget(RecipeIngredientRole, mezz.jei.api.gui.widgets.ISlottedWidgetFactory)}
 	 *
-	 * @since 15.10.0
+	 * @since 19.7.0
 	 * @deprecated use {@link IRecipeExtrasBuilder#addScrollGridWidget} instead, it's much simpler
 	 */
 	@SuppressWarnings("removal")
-	@Deprecated(since = "15.20.0", forRemoval = true)
+	@Deprecated(since = "19.19.3", forRemoval = true)
 	mezz.jei.api.gui.widgets.IScrollGridWidgetFactory<?> createScrollGridFactory(int columns, int visibleRows);
 
 	/**
 	 * Create a scroll box widget.
 	 * Handles displaying drawable contents in a scrolling area.
 	 *
-	 * @since 15.11.0
+	 * @since 19.8.0
+	 *
 	 * @deprecated use {@link IRecipeExtrasBuilder#addScrollBoxWidget}
 	 */
-	@Deprecated(since = "15.20.0", forRemoval = true)
+	@Deprecated(since = "19.18.9", forRemoval = true)
 	IScrollBoxWidget createScrollBoxWidget(IDrawable contents, int visibleHeight, int xPos, int yPos);
 
 	/**
 	 * Create a scroll box widget.
 	 * Handles displaying drawable contents in a scrolling area.
 	 *
-	 * @since 15.20.0
+	 * @since 19.18.10
 	 */
 	IScrollBoxWidget createScrollBoxWidget(int width, int height, int xPos, int yPos);
 
 	/**
 	 * The amount of extra horizontal space that a {@link IScrollBoxWidget} takes up with its scroll bar.
 	 *
-	 * @since 15.11.0
+	 * @since 19.8.0
 	 *
 	 * @deprecated use {@link IRecipeExtrasBuilder#addScrollBoxWidget}
 	 */
-	@Deprecated(since = "15.20.0", forRemoval = true)
+	@Deprecated(since = "19.18.9", forRemoval = true)
 	int getScrollBoxScrollbarExtraWidth();
 
 	/**
 	 * Create a simple widget from an {@link IDrawable}
 	 *
-	 * @since 15.19.5
+	 * @since 19.18.8
 	 */
 	IRecipeWidget createWidgetFromDrawable(IDrawable drawable, int xPos, int yPos);
 

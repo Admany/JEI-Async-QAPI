@@ -30,8 +30,7 @@ public final class StringUtil {
 	}
 
 	public static String removeChatFormatting(String string) {
-		String result = ChatFormatting.stripFormatting(string);
-		return result == null ? "" : result;
+		return ChatFormatting.stripFormatting(string);
 	}
 
 	public static FormattedText truncateStringToWidth(FormattedText text, int width, Font font) {
@@ -77,7 +76,7 @@ public final class StringUtil {
 				if (result.size() == maxLines) {
 					// result is at the max size, but we still have more to add.
 					// Truncate the last line to indicate that there is more text that can't be displayed.
-					FormattedText last = result.remove(result.size() - 1);
+					FormattedText last = result.removeLast();
 					last = truncateStringToWidth(last, width, font);
 					result.add(last);
 					return new Pair<>(result, true);

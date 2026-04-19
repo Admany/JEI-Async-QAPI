@@ -17,6 +17,11 @@ pluginManagement {
 			includeGroup("net.fabricmc")
 			includeGroup("fabric-loom")
 		}
+		exclusiveMaven("https://maven.neoforged.net/releases") {
+			includeGroupByRegex("net\\.neoforged.*")
+			includeGroup("codechicken")
+			includeGroup("net.covers1624")
+		}
 		maven("https://repo.spongepowered.org/repository/maven-public/") {
 			content {
 				includeGroupByRegex("org\\.spongepowered.*")
@@ -44,6 +49,7 @@ include(
 	"Core",
 	"Changelog",
 	"Common", "CommonApi",
+	"NeoForge", "NeoForgeApi",
 	"Forge", "ForgeApi",
 	"Fabric", "FabricApi",
 	"Library",
