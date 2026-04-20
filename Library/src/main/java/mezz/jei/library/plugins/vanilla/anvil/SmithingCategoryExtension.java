@@ -8,11 +8,14 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.SmithingRecipe;
 import net.minecraft.world.item.crafting.SmithingRecipeInput;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.Arrays;
 import java.util.List;
 
 public abstract class SmithingCategoryExtension<R extends SmithingRecipe> implements ISmithingCategoryExtension<R> {
+	private static final Logger LOGGER = LogManager.getLogger();
 	private final IPlatformRecipeHelper recipeHelper;
 
 	public SmithingCategoryExtension(IPlatformRecipeHelper recipeHelper) {
@@ -61,9 +64,13 @@ public abstract class SmithingCategoryExtension<R extends SmithingRecipe> implem
 
 		for (ItemStack template : templateStacks) {
 			for (ItemStack base : baseStacks) {
-				SmithingRecipeInput recipeInput = new SmithingRecipeInput(template, base, addition);
-				ItemStack output = RecipeUtil.assembleResultItem(recipeInput, recipe);
-				ingredientAcceptor.addItemStack(output);
+				try {
+					SmithingRecipeInput recipeInput = new SmithingRecipeInput(template, base, addition);
+					ItemStack output = RecipeUtil.assembleResultItem(recipeInput, recipe);
+					ingredientAcceptor.addItemStack(output);
+				} catch (RuntimeException | LinkageError e) {
+					LOGGER.debug("Failed to assemble smithing recipe output for recipe: {}", recipe, e);
+				}
 			}
 		}
 	}

@@ -1,6 +1,8 @@
 package mezz.jei.core.collect;
 
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -11,11 +13,11 @@ import com.google.common.collect.ImmutableTable;
 
 public class Table<R, C, V> {
 	public static <R, C, V> Table<R, C, V> hashBasedTable() {
-		return new Table<>(new HashMap<>(), HashMap::new);
+		return new Table<>(Collections.synchronizedMap(new HashMap<>()), HashMap::new);
 	}
 
 	public static <R, C, V> Table<R, C, V> identityHashBasedTable() {
-		return new Table<>(new IdentityHashMap<>(), IdentityHashMap::new);
+		return new Table<>(Collections.synchronizedMap(new IdentityHashMap<>()), IdentityHashMap::new);
 	}
 
 	private final Map<R, Map<C, V>> table;
@@ -23,7 +25,7 @@ public class Table<R, C, V> {
 
 	public Table(Map<R, Map<C, V>> table, Supplier<Map<C, V>> rowSupplier) {
 		this.table = table;
-		this.rowMappingFunction = (k -> rowSupplier.get());
+		this.rowMappingFunction = (k -> Collections.synchronizedMap(rowSupplier.get()));
 	}
 
 	@Nullable
@@ -58,12 +60,17 @@ public class Table<R, C, V> {
 
 	public ImmutableTable<R, C, V> toImmutable() {
 		ImmutableTable.Builder<R, C, V> builder = ImmutableTable.builder();
-		for (Map.Entry<R, Map<C, V>> entry : table.entrySet()) {
-			R row = entry.getKey();
-			for (Map.Entry<C, V> rowEntry : entry.getValue().entrySet()) {
-				C col = rowEntry.getKey();
-				V val = rowEntry.getValue();
-				builder.put(row, col, val);
+		synchronized (table) {
+			for (Map.Entry<R, Map<C, V>> entry : table.entrySet()) {
+				R row = entry.getKey();
+				Map<C, V> rowMap = entry.getValue();
+				synchronized (rowMap) {
+					for (Map.Entry<C, V> rowEntry : rowMap.entrySet()) {
+						C col = rowEntry.getKey();
+						V val = rowEntry.getValue();
+						builder.put(row, col, val);
+					}
+				}
 			}
 		}
 		return builder.build();

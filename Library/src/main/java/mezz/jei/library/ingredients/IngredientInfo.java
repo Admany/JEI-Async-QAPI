@@ -1,6 +1,5 @@
 package mezz.jei.library.ingredients;
 
-import com.google.common.collect.Collections2;
 import com.mojang.serialization.Codec;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientRenderer;
@@ -12,8 +11,10 @@ import mezz.jei.library.load.registration.LegacyUidCodec;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 public class IngredientInfo<T> {
@@ -65,13 +66,16 @@ public class IngredientInfo<T> {
 
 	@Unmodifiable
 	public Collection<ITypedIngredient<T>> getAllTypedIngredients() {
-		return Collections.unmodifiableCollection(ingredientSet);
+		return List.copyOf(ingredientSet);
 	}
 
 	@Unmodifiable
 	public Collection<T> getAllIngredients() {
-		Collection<T> transform = Collections2.transform(ingredientSet, ITypedIngredient::getIngredient);
-		return Collections.unmodifiableCollection(transform);
+		List<T> ingredients = new ArrayList<>(ingredientSet.size());
+		for (ITypedIngredient<T> typedIngredient : ingredientSet) {
+			ingredients.add(typedIngredient.getIngredient());
+		}
+		return Collections.unmodifiableCollection(ingredients);
 	}
 
 	public void addIngredients(Collection<ITypedIngredient<T>> ingredients) {

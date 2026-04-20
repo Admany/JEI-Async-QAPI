@@ -11,8 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SequencedMap;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RegisteredIngredients {
 	/** preserves a stable ordering of the types */
@@ -24,9 +23,9 @@ public class RegisteredIngredients {
 	private final Map<IIngredientType<?>, IngredientInfo<?>> typeToInfo;
 
 	/** for looking up types by ingredient class */
-	private final Map<Class<?>, IIngredientType<?>> classToType;
+	private final Map<Class<?>, IIngredientType<?>> classToType = new ConcurrentHashMap<>();
 	/** for looking up types with subtypes by base ingredient class */
-	private final Map<Class<?>, IIngredientTypeWithSubtypes<?, ?>> baseClassToType;
+	private final Map<Class<?>, IIngredientTypeWithSubtypes<?, ?>> baseClassToType = new ConcurrentHashMap<>();
 
 	public RegisteredIngredients(SequencedMap<IIngredientType<?>, IngredientInfo<?>> ingredientInfoList) {
 		this.orderedTypes = ingredientInfoList.sequencedValues().stream()
@@ -35,13 +34,12 @@ public class RegisteredIngredients {
 
 		this.typeToInfo = new Object2ObjectArrayMap<>(ingredientInfoList);
 
-		this.classToType = this.orderedTypes.stream()
-			.collect(Collectors.toMap(IIngredientType::getIngredientClass, Function.identity()));
-
-		this.baseClassToType = this.orderedTypes.stream()
-			.filter(IIngredientTypeWithSubtypes.class::isInstance)
-			.<IIngredientTypeWithSubtypes<?, ?>>map(IIngredientTypeWithSubtypes.class::cast)
-			.collect(Collectors.toMap(IIngredientTypeWithSubtypes::getIngredientBaseClass, Function.identity()));
+		for (IIngredientType<?> type : this.orderedTypes) {
+			this.classToType.put(type.getIngredientClass(), type);
+			if (type instanceof IIngredientTypeWithSubtypes<?, ?> typeWithSubtypes) {
+				this.baseClassToType.put(typeWithSubtypes.getIngredientBaseClass(), typeWithSubtypes);
+			}
+		}
 	}
 
 	public <V> IngredientInfo<V> getIngredientInfo(IIngredientType<V> ingredientType) {
@@ -70,10 +68,11 @@ public class RegisteredIngredients {
 	@Nullable
 	public <V> IIngredientType<V> getIngredientType(Class<? extends V> ingredientClass) {
 		ErrorUtil.checkNotNull(ingredientClass, "ingredientClass");
-		@SuppressWarnings("unchecked")
-		IIngredientType<V> ingredientType = (IIngredientType<V>) this.classToType.get(ingredientClass);
+		IIngredientType<?> ingredientType = this.classToType.get(ingredientClass);
 		if (ingredientType != null) {
-			return ingredientType;
+			@SuppressWarnings("unchecked")
+			IIngredientType<V> castType = (IIngredientType<V>) ingredientType;
+			return castType;
 		}
 		for (IIngredientType<?> type : this.orderedTypes) {
 			if (type.getIngredientClass().isAssignableFrom(ingredientClass)) {
@@ -88,16 +87,17 @@ public class RegisteredIngredients {
 
 	public <I, B> Optional<IIngredientTypeWithSubtypes<B, I>> getIngredientTypeWithSubtypesFromBase(B baseIngredient) {
 		Class<?> baseIngredientClass = baseIngredient.getClass();
-		@SuppressWarnings("unchecked")
-		IIngredientTypeWithSubtypes<B, I> ingredientType = (IIngredientTypeWithSubtypes<B, I>) this.baseClassToType.get(baseIngredientClass);
-		if (ingredientType != null) {
-			return Optional.of(ingredientType);
+		IIngredientTypeWithSubtypes<?, ?> typeWithSubtypes = this.baseClassToType.get(baseIngredientClass);
+		if (typeWithSubtypes != null) {
+			@SuppressWarnings("unchecked")
+			IIngredientTypeWithSubtypes<B, I> castType = (IIngredientTypeWithSubtypes<B, I>) typeWithSubtypes;
+			return Optional.of(castType);
 		}
 		for (IIngredientType<?> type : this.orderedTypes) {
-			if (type instanceof IIngredientTypeWithSubtypes<?, ?> typeWithSubtypes) {
-				if (typeWithSubtypes.getIngredientBaseClass().isInstance(baseIngredient)) {
+			if (type instanceof IIngredientTypeWithSubtypes<?, ?> t) {
+				if (t.getIngredientBaseClass().isInstance(baseIngredient)) {
 					@SuppressWarnings("unchecked")
-					IIngredientTypeWithSubtypes<B, I> castType = (IIngredientTypeWithSubtypes<B, I>) typeWithSubtypes;
+					IIngredientTypeWithSubtypes<B, I> castType = (IIngredientTypeWithSubtypes<B, I>) t;
 					this.baseClassToType.put(baseIngredientClass, castType);
 					return Optional.of(castType);
 				}

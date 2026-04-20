@@ -41,12 +41,12 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 
 	@SuppressWarnings("removal")
 	@Override
-	public <V> void register(IIngredientType<V> ingredientType, Collection<V> allIngredients, IIngredientHelper<V> ingredientHelper, IIngredientRenderer<V> ingredientRenderer) {
+	public synchronized <V> void register(IIngredientType<V> ingredientType, Collection<V> allIngredients, IIngredientHelper<V> ingredientHelper, IIngredientRenderer<V> ingredientRenderer) {
 		registerInternal(ingredientType, allIngredients, ingredientHelper, ingredientRenderer, null);
 	}
 
 	@Override
-	public <V> void register(
+	public synchronized <V> void register(
 		IIngredientType<V> ingredientType,
 		Collection<V> allIngredients,
 		IIngredientHelper<V> ingredientHelper,
@@ -101,7 +101,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 	}
 
 	@Override
-	public <V> void addExtraIngredients(IIngredientType<V> ingredientType, Collection<V> extraIngredients) {
+	public synchronized <V> void addExtraIngredients(IIngredientType<V> ingredientType, Collection<V> extraIngredients) {
 		ErrorUtil.checkNotNull(ingredientType, "ingredientType");
 		ErrorUtil.checkNotNull(extraIngredients, "extraIngredients");
 
@@ -128,7 +128,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 	}
 
 	@Override
-	public <I> void addAlias(IIngredientType<I> type, I ingredient, String alias) {
+	public synchronized <I> void addAlias(IIngredientType<I> type, I ingredient, String alias) {
 		ErrorUtil.checkNotNull(type, "type");
 		ErrorUtil.checkNotNull(ingredient, "ingredient");
 		ErrorUtil.checkNotNull(alias, "alias");
@@ -138,7 +138,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 	}
 
 	@Override
-	public <I> void addAlias(ITypedIngredient<I> typedIngredient, String alias) {
+	public synchronized <I> void addAlias(ITypedIngredient<I> typedIngredient, String alias) {
 		ErrorUtil.checkNotNull(typedIngredient, "typedIngredient");
 		ErrorUtil.checkNotNull(alias, "alias");
 
@@ -147,7 +147,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 	}
 
 	@Override
-	public <I> void addAliases(IIngredientType<I> type, I ingredient, Collection<String> aliases) {
+	public synchronized <I> void addAliases(IIngredientType<I> type, I ingredient, Collection<String> aliases) {
 		ErrorUtil.checkNotNull(type, "type");
 		ErrorUtil.checkNotNull(ingredient, "ingredient");
 		ErrorUtil.checkNotNull(aliases, "aliases");
@@ -157,7 +157,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 	}
 
 	@Override
-	public <I> void addAliases(ITypedIngredient<I> typedIngredient, Collection<String> aliases) {
+	public synchronized <I> void addAliases(ITypedIngredient<I> typedIngredient, Collection<String> aliases) {
 		ErrorUtil.checkNotNull(typedIngredient, "typedIngredient");
 		ErrorUtil.checkNotNull(aliases, "aliases");
 
@@ -166,7 +166,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 	}
 
 	@Override
-	public <I> void addAliases(IIngredientType<I> type, Collection<I> ingredients, String alias) {
+	public synchronized <I> void addAliases(IIngredientType<I> type, Collection<I> ingredients, String alias) {
 		ErrorUtil.checkNotNull(type, "type");
 		ErrorUtil.checkNotNull(ingredients, "ingredients");
 		ErrorUtil.checkNotNull(alias, "alias");
@@ -178,7 +178,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 	}
 
 	@Override
-	public <I> void addAliases(Collection<ITypedIngredient<I>> typedIngredients, String alias) {
+	public synchronized <I> void addAliases(Collection<ITypedIngredient<I>> typedIngredients, String alias) {
 		ErrorUtil.checkNotNull(typedIngredients, "typedIngredients");
 		ErrorUtil.checkNotNull(alias, "alias");
 
@@ -193,7 +193,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 	}
 
 	@Override
-	public <I> void addAliases(IIngredientType<I> type, Collection<I> ingredients, Collection<String> aliases) {
+	public synchronized <I> void addAliases(IIngredientType<I> type, Collection<I> ingredients, Collection<String> aliases) {
 		ErrorUtil.checkNotNull(type, "type");
 		ErrorUtil.checkNotNull(ingredients, "ingredients");
 		ErrorUtil.checkNotNull(aliases, "aliases");
@@ -205,7 +205,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 	}
 
 	@Override
-	public <I> void addAliases(Collection<ITypedIngredient<I>> typedIngredients, Collection<String> aliases) {
+	public synchronized <I> void addAliases(Collection<ITypedIngredient<I>> typedIngredients, Collection<String> aliases) {
 		ErrorUtil.checkNotNull(typedIngredients, "typedIngredients");
 		ErrorUtil.checkNotNull(aliases, "aliases");
 
@@ -219,7 +219,7 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		}
 	}
 
-	private <T> IngredientInfo<T> getIngredientInfo(IIngredientType<T> ingredientType) {
+	private synchronized <T> IngredientInfo<T> getIngredientInfo(IIngredientType<T> ingredientType) {
 		IngredientInfo<?> ingredientInfo = ingredientInfos.get(ingredientType);
 		if (ingredientInfo == null) {
 			throw new IllegalArgumentException("Ingredient type has not been registered: " + ingredientType.getUid());
@@ -239,8 +239,9 @@ public class IngredientManagerBuilder implements IModIngredientRegistration, IIn
 		return colorHelper;
 	}
 
-	public IIngredientManager build() {
-		RegisteredIngredients registeredIngredients = new RegisteredIngredients(ingredientInfos);
+	public synchronized IIngredientManager build() {
+		SequencedMap<IIngredientType<?>, IngredientInfo<?>> snapshot = new LinkedHashMap<>(ingredientInfos);
+		RegisteredIngredients registeredIngredients = new RegisteredIngredients(snapshot);
 		return new IngredientManager(registeredIngredients);
 	}
 }

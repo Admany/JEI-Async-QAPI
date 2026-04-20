@@ -26,6 +26,7 @@ import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -45,15 +46,15 @@ public class RecipeManagerInternal {
 	private final Comparator<IRecipeCategory<?>> recipeCategoryComparator;
 	private final EnumMap<RecipeIngredientRole, RecipeMap> recipeMaps;
 	private final PluginManager pluginManager;
-	private final Set<RecipeType<?>> hiddenRecipeTypes = new HashSet<>();
+	private final Set<RecipeType<?>> hiddenRecipeTypes = Collections.synchronizedSet(new HashSet<>());
 	private final IIngredientVisibility ingredientVisibility;
-	private List<PendingRecipeEntry<?>> pendingRecipes = new ArrayList<>();
+	private List<PendingRecipeEntry<?>> pendingRecipes = Collections.synchronizedList(new ArrayList<>());
 	private volatile boolean deferIndexing = true;
 	private volatile CompletableFuture<Void> indexBuildFuture = CompletableFuture.completedFuture(null);
 
 	@Nullable
 	@Unmodifiable
-	private List<IRecipeCategory<?>> recipeCategoriesVisibleCache = null;
+	private volatile List<IRecipeCategory<?>> recipeCategoriesVisibleCache = null;
 
 	public RecipeManagerInternal(
 		List<IRecipeCategory<?>> recipeCategories,
@@ -160,9 +161,12 @@ public class RecipeManagerInternal {
 
 	private void buildRecipeIndex() {
 		// Take a snapshot and stop deferring so any new addRecipes() calls index immediately
-		List<PendingRecipeEntry<?>> snapshot = pendingRecipes;
-		pendingRecipes = new ArrayList<>();
-		deferIndexing = false;
+		List<PendingRecipeEntry<?>> snapshot;
+		synchronized (pendingRecipes) {
+			snapshot = new ArrayList<>(pendingRecipes);
+			pendingRecipes.clear();
+			deferIndexing = false;
+		}
 
 		LOGGER.info("Building recipe index ({} batches)...", snapshot.size());
 		com.google.common.base.Stopwatch stopwatch = com.google.common.base.Stopwatch.createStarted();

@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -45,13 +46,13 @@ public class TypedIngredientSet<T> extends AbstractSet<ITypedIngredient<T>> {
 	}
 
 	@Override
-	public boolean add(ITypedIngredient<T> value) {
+	public synchronized boolean add(ITypedIngredient<T> value) {
 		Object uid = getUid(value);
 		return uid != null && ingredients.put(uid, value) == null;
 	}
 
 	@Override
-	public boolean remove(Object value) {
+	public synchronized boolean remove(Object value) {
 		if (value instanceof ITypedIngredient<?> typedIngredient) {
 			IIngredientType<?> type = typedIngredient.getType();
 			if (this.ingredientHelper.getIngredientType().equals(type)) {
@@ -65,7 +66,7 @@ public class TypedIngredientSet<T> extends AbstractSet<ITypedIngredient<T>> {
 	}
 
 	@Override
-	public boolean removeAll(Collection<?> c) {
+	public synchronized boolean removeAll(Collection<?> c) {
 		Objects.requireNonNull(c);
 		boolean modified = false;
 		for (Object value : c) {
@@ -75,7 +76,7 @@ public class TypedIngredientSet<T> extends AbstractSet<ITypedIngredient<T>> {
 	}
 
 	@Override
-	public boolean addAll(Collection<? extends ITypedIngredient<T>> c) {
+	public synchronized boolean addAll(Collection<? extends ITypedIngredient<T>> c) {
 		Objects.requireNonNull(c);
 		boolean modified = false;
 		for (ITypedIngredient<T> value : c) {
@@ -85,7 +86,7 @@ public class TypedIngredientSet<T> extends AbstractSet<ITypedIngredient<T>> {
 	}
 
 	@Override
-	public boolean contains(Object value) {
+	public synchronized boolean contains(Object value) {
 		if (value instanceof ITypedIngredient<?> typedIngredient) {
 			IIngredientType<?> type = typedIngredient.getType();
 			if (this.ingredientHelper.getIngredientType().equals(type)) {
@@ -100,7 +101,7 @@ public class TypedIngredientSet<T> extends AbstractSet<ITypedIngredient<T>> {
 
 	@SuppressWarnings("removal")
 	@Deprecated(forRemoval = true)
-	public Optional<ITypedIngredient<T>> getByLegacyUid(String uid) {
+	public synchronized Optional<ITypedIngredient<T>> getByLegacyUid(String uid) {
 		ITypedIngredient<T> v = ingredients.get(uid);
 		if (v != null) {
 			return Optional.of(v);
@@ -116,17 +117,27 @@ public class TypedIngredientSet<T> extends AbstractSet<ITypedIngredient<T>> {
 	}
 
 	@Override
-	public void clear() {
+	public synchronized void clear() {
 		ingredients.clear();
 	}
 
 	@Override
-	public Iterator<ITypedIngredient<T>> iterator() {
-		return ingredients.values().iterator();
+	public synchronized Iterator<ITypedIngredient<T>> iterator() {
+		return new ArrayList<>(ingredients.values()).iterator();
 	}
 
 	@Override
-	public int size() {
+	public synchronized int size() {
 		return ingredients.size();
+	}
+
+	@Override
+	public synchronized Object[] toArray() {
+		return ingredients.values().toArray();
+	}
+
+	@Override
+	public synchronized <T1> T1[] toArray(T1[] a) {
+		return ingredients.values().toArray(a);
 	}
 }

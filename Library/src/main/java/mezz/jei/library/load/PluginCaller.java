@@ -235,7 +235,7 @@ public class PluginCaller {
 			try {
 				task.run();
 				future.complete(null);
-			} catch (RuntimeException | LinkageError e) {
+			} catch (Throwable e) {
 				future.completeExceptionally(e);
 			}
 		});
@@ -249,6 +249,9 @@ public class PluginCaller {
 			}
 			if (cause instanceof LinkageError le) {
 				throw le;
+			}
+			if (cause instanceof Error err) {
+				throw err;
 			}
 			throw new RuntimeException(cause);
 		} catch (InterruptedException e) {
