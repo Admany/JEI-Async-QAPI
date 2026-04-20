@@ -1,35 +1,39 @@
 package mezz.jei.library.load;
 
 import net.minecraft.resources.ResourceLocation;
-import org.jetbrains.annotations.Nullable;
 
+import java.util.Collections;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class PluginCallerTimer implements AutoCloseable {
 	private final ScheduledExecutorService executor;
-	private @Nullable PluginCallerTimerRunnable runnable;
+	private final Set<PluginCallerTimerRunnable> runnables = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
 	public PluginCallerTimer() {
 		this.executor = Executors.newSingleThreadScheduledExecutor();
 		this.executor.scheduleAtFixedRate(this::run, 100, 100, TimeUnit.MILLISECONDS);
 	}
 
-	private synchronized void run() {
-		if (this.runnable != null) {
-			this.runnable.check();
+	private void run() {
+		for (PluginCallerTimerRunnable runnable : runnables) {
+			runnable.check();
 		}
 	}
 
-	public synchronized void begin(String title, ResourceLocation pluginUid) {
-		this.runnable = new PluginCallerTimerRunnable(title, pluginUid);
+	public PluginCallerTimerRunnable begin(String title, ResourceLocation pluginUid) {
+		PluginCallerTimerRunnable runnable = new PluginCallerTimerRunnable(title, pluginUid);
+		runnables.add(runnable);
+		return runnable;
 	}
 
-	public synchronized void end() {
-		if (this.runnable != null) {
-			this.runnable.stop();
-			this.runnable = null;
+	public void end(PluginCallerTimerRunnable runnable) {
+		if (runnable != null) {
+			runnable.stop();
+			runnables.remove(runnable);
 		}
 	}
 

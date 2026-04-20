@@ -55,7 +55,7 @@ public class IncompatiblePluginStore {
 		loadFromFile();
 	}
 
-	public boolean isIncompatible(IModPlugin plugin, String phase) {
+	public synchronized boolean isIncompatible(IModPlugin plugin, String phase) {
 		String uid = plugin.getPluginUid().toString();
 		if (globalIncompatible.contains(uid)) {
 			return true;
@@ -64,7 +64,7 @@ public class IncompatiblePluginStore {
 		return phaseSet != null && phaseSet.contains(uid);
 	}
 
-	public void markIncompatible(IModPlugin plugin, String phase) {
+	public synchronized void markIncompatible(IModPlugin plugin, String phase) {
 		String uid = plugin.getPluginUid().toString();
 		Set<String> phaseSet = phaseIncompatible.computeIfAbsent(phase, k -> new HashSet<>());
 		if (phaseSet.add(uid)) {
@@ -73,7 +73,7 @@ public class IncompatiblePluginStore {
 		}
 	}
 
-	private void loadFromFile() {
+	private synchronized void loadFromFile() {
 		if (!Files.exists(filePath)) {
 			return;
 		}
@@ -112,7 +112,13 @@ public class IncompatiblePluginStore {
 			Files.createDirectories(filePath.getParent());
 			StoreFile storeFile = new StoreFile();
 			storeFile.formatVersion = FORMAT_VERSION;
-			storeFile.phaseIncompatible = phaseIncompatible;
+			// Copy the map to avoid ConcurrentModificationException during GSON serialization
+			synchronized (this) {
+				storeFile.phaseIncompatible = new HashMap<>();
+				for (Map.Entry<String, Set<String>> entry : phaseIncompatible.entrySet()) {
+					storeFile.phaseIncompatible.put(entry.getKey(), new HashSet<>(entry.getValue()));
+				}
+			}
 			try (Writer writer = Files.newBufferedWriter(filePath)) {
 				GSON.toJson(storeFile, writer);
 			}

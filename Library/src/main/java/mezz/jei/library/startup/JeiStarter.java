@@ -110,7 +110,7 @@ public final class JeiStarter {
 		this.recipeCategorySortingConfig = new RecipeCategorySortingConfig(configDir.resolve("recipe-category-sort-order.ini"));
 		this.incompatiblePluginStore = new IncompatiblePluginStore(configDir);
 
-		PluginCaller.callOnPlugins("Sending ConfigManager", plugins, p -> p.onConfigManagerAvailable(configManager));
+		PluginCaller.callPlugins("Sending ConfigManager", plugins, p -> p.onConfigManagerAvailable(configManager), DebugConfig.isAsyncLoadingEnabled(), incompatiblePluginStore);
 	}
 
 	public void start() {
@@ -158,7 +158,7 @@ public final class JeiStarter {
 
 		JeiRuntime jeiRuntime = buildRuntime(false);
 
-		PluginCaller.callOnPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime));
+		PluginCaller.callPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime), false, incompatiblePluginStore);
 		Internal.setRuntime(jeiRuntime);
 
 		totalTime.stop();
@@ -192,7 +192,7 @@ public final class JeiStarter {
 				return;
 			}
 			Internal.setRuntime(jeiRuntime);
-			PluginCaller.callOnPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime));
+			PluginCaller.callPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime), true, incompatiblePluginStore);
 			Internal.setLoadingProgress(null);
 			LOGGER.info("JEI has finished background loading and is now available.");
 			playLoadCompleteSound();
@@ -293,11 +293,7 @@ public final class JeiStarter {
 			screenHelper
 		);
 
-		if (useAsyncFallback) {
-			PluginCaller.callOnPluginsWithFallback("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration), incompatiblePluginStore);
-		} else {
-			PluginCaller.callOnPlugins("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration));
-		}
+		PluginCaller.callPlugins("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration), useAsyncFallback, incompatiblePluginStore);
 
 		JeiRuntime jeiRuntime = new JeiRuntime(
 			recipeManager,
@@ -332,7 +328,7 @@ public final class JeiStarter {
 		}
 
 		List<IModPlugin> plugins = data.plugins();
-		PluginCaller.callOnPlugins("Sending Runtime Unavailable", plugins, IModPlugin::onRuntimeUnavailable);
+		PluginCaller.callPlugins("Sending Runtime Unavailable", plugins, IModPlugin::onRuntimeUnavailable, false, incompatiblePluginStore);
 		Internal.setRuntime(null);
 		RegistryUtil.setRegistryAccess(null);
 	}

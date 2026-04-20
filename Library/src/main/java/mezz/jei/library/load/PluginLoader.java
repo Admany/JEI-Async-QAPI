@@ -264,10 +264,6 @@ public final class PluginLoader {
 		boolean useAsyncFallback,
 		IncompatiblePluginStore incompatiblePluginStore
 	) {
-		if (useAsyncFallback && incompatiblePluginStore != null) {
-			PluginCaller.callOnPluginsWithFallback(title, plugins, func, incompatiblePluginStore);
-		} else {
-			PluginCaller.callOnPlugins(title, plugins, func);
-		}
+		PluginCaller.callPlugins(title, plugins, func, useAsyncFallback, incompatiblePluginStore);
 	}
 }

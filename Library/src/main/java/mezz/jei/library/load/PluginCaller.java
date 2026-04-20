@@ -10,8 +10,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -29,6 +31,23 @@ public class PluginCaller {
 		thread.setDaemon(true);
 		return thread;
 	});
+
+	/**
+	 * Route plugin calls to the appropriate method based on whether async fallback is enabled.
+	 */
+	public static void callPlugins(
+		String title,
+		List<IModPlugin> plugins,
+		Consumer<IModPlugin> func,
+		boolean useAsyncFallback,
+		@Nullable IncompatiblePluginStore incompatiblePluginStore
+	) {
+		if (useAsyncFallback && incompatiblePluginStore != null) {
+			callOnPluginsWithFallback(title, plugins, func, incompatiblePluginStore);
+		} else {
+			callOnPlugins(title, plugins, func);
+		}
+	}
 
 	public static void callOnPlugins(String title, List<IModPlugin> plugins, Consumer<IModPlugin> func) {
 		LOGGER.info("{}...", title);
@@ -54,41 +73,51 @@ public class PluginCaller {
 		}
 
 		// Execute sync plugins on main thread (100% backward compatible)
-		for (IModPlugin plugin : syncPlugins) {
-			try {
-				func.accept(plugin);
-			} catch (RuntimeException | LinkageError e) {
-				if (plugin instanceof VanillaPlugin) {
-					throw e;
+		try (PluginCallerTimer timer = new PluginCallerTimer()) {
+			for (IModPlugin plugin : syncPlugins) {
+				ResourceLocation pluginUid = plugin.getPluginUid();
+				PluginCallerTimerRunnable runnable = timer.begin(title, pluginUid);
+				try {
+					func.accept(plugin);
+				} catch (RuntimeException | LinkageError e) {
+					if (plugin instanceof VanillaPlugin) {
+						throw e;
+					}
+					LOGGER.error("Caught an error from mod plugin: {} {}", plugin.getClass(), pluginUid, e);
 				}
-				LOGGER.error("Caught an error from mod plugin: {} {}", plugin.getClass(), plugin.getPluginUid(), e);
+				timer.end(runnable);
 			}
 		}
 
-		// Execute async-safe plugins on background thread (opt-in)
+		// Execute async-safe plugins in parallel on background threads (opt-in)
 		if (!asyncPlugins.isEmpty()) {
-			CompletableFuture<Void> asyncTask = CompletableFuture.runAsync(() -> {
-				for (IModPlugin plugin : asyncPlugins) {
-					try {
-						func.accept(plugin);
-					} catch (RuntimeException | LinkageError e) {
-						LOGGER.error("Caught an error from async mod plugin: {} {}",
-							plugin.getClass(), plugin.getPluginUid(), e);
-					}
-				}
-			}, EXECUTOR);
+			try (PluginCallerTimer timer = new PluginCallerTimer()) {
+				List<CompletableFuture<Void>> futures = asyncPlugins.stream()
+					.map(plugin -> CompletableFuture.runAsync(() -> {
+						ResourceLocation pluginUid = plugin.getPluginUid();
+						PluginCallerTimerRunnable runnable = timer.begin(title, pluginUid);
+						try {
+							func.accept(plugin);
+						} catch (RuntimeException | LinkageError e) {
+							LOGGER.error("Caught an error from async mod plugin: {} {}",
+								plugin.getClass(), pluginUid, e);
+						} finally {
+							timer.end(runnable);
+						}
+					}, EXECUTOR))
+					.toList();
 
-			// Wait for async plugins to complete (with timeout to prevent hangs)
-			try {
-				asyncTask.get(30, TimeUnit.SECONDS);
-			} catch (TimeoutException e) {
-				LOGGER.error("Async plugin execution timed out after 30 seconds. Some plugins may not have completed registration.");
-				asyncTask.cancel(true);
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				LOGGER.error("Async plugin execution was interrupted", e);
-			} catch (ExecutionException e) {
-				LOGGER.error("Async plugin execution failed", e);
+				// Wait for async plugins to complete (with timeout to prevent hangs)
+				try {
+					CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(30, TimeUnit.SECONDS);
+				} catch (TimeoutException e) {
+					LOGGER.error("Async plugin execution timed out after 30 seconds. Some plugins may not have completed registration.");
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					LOGGER.error("Async plugin execution was interrupted", e);
+				} catch (ExecutionException e) {
+					LOGGER.error("Async plugin execution failed", e);
+				}
 			}
 		}
 
@@ -107,7 +136,7 @@ public class PluginCaller {
 	}
 
 	/**
-	 * Execute plugins sequentially with auto-fallback for failures.
+	 * Execute plugins in parallel with auto-fallback for failures.
 	 * If a plugin fails on the background thread, it is retried on the main thread.
 	 * Failed plugins are recorded in the IncompatiblePluginStore for future runs.
 	 *
@@ -134,24 +163,30 @@ public class PluginCaller {
 			}
 		}
 
+		List<IModPlugin> newlyFailed = Collections.synchronizedList(new ArrayList<>());
 		try (PluginCallerTimer timer = new PluginCallerTimer()) {
-			// Execute async-capable plugins on background thread
-			List<IModPlugin> newlyFailed = new ArrayList<>();
-			for (IModPlugin plugin : asyncPlugins) {
-				ResourceLocation pluginUid = plugin.getPluginUid();
-				timer.begin(title, pluginUid);
-				try {
-					func.accept(plugin);
-					timer.end();
-				} catch (RuntimeException | LinkageError e) {
-					timer.end();
-					if (plugin instanceof VanillaPlugin) {
-						throw e;
-					}
-					LOGGER.warn("{} - plugin {} failed on background thread, will retry on main thread", title, pluginUid, e);
-					store.markIncompatible(plugin, title);
-					newlyFailed.add(plugin);
-				}
+			// Execute async-capable plugins in parallel on background threads
+			if (!asyncPlugins.isEmpty()) {
+				List<CompletableFuture<Void>> futures = asyncPlugins.stream()
+					.map(plugin -> CompletableFuture.runAsync(() -> {
+						ResourceLocation pluginUid = plugin.getPluginUid();
+						PluginCallerTimerRunnable runnable = timer.begin(title, pluginUid);
+						try {
+							func.accept(plugin);
+						} catch (RuntimeException | LinkageError e) {
+							if (plugin instanceof VanillaPlugin) {
+								throw e;
+							}
+							LOGGER.warn("{} - plugin {} failed on background thread, will retry on main thread", title, pluginUid, e);
+							store.markIncompatible(plugin, title);
+							newlyFailed.add(plugin);
+						} finally {
+							timer.end(runnable);
+						}
+					}, EXECUTOR))
+					.toList();
+
+				CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 			}
 
 			// Batch all incompatible plugins into a single main-thread roundtrip
@@ -166,7 +201,7 @@ public class PluginCaller {
 				executeOnMainThreadBlocking(() -> {
 					for (IModPlugin plugin : mainThreadPlugins) {
 						ResourceLocation pluginUid = plugin.getPluginUid();
-						timer.begin(title + " [main-thread]", pluginUid);
+						PluginCallerTimerRunnable runnable = timer.begin(title + " [main-thread]", pluginUid);
 						try {
 							func.accept(plugin);
 						} catch (RuntimeException | LinkageError e) {
@@ -175,7 +210,7 @@ public class PluginCaller {
 							}
 							LOGGER.error("Plugin {} failed on main thread: {} {}", pluginUid, plugin.getClass(), pluginUid, e);
 						}
-						timer.end();
+						timer.end(runnable);
 					}
 				});
 			}
@@ -229,17 +264,17 @@ public class PluginCaller {
 	private static void callOnPluginsSync(String title, List<IModPlugin> plugins, Consumer<IModPlugin> func) {
 		try (PluginCallerTimer timer = new PluginCallerTimer()) {
 			for (IModPlugin plugin : plugins) {
+				ResourceLocation pluginUid = plugin.getPluginUid();
+				PluginCallerTimerRunnable runnable = timer.begin(title, pluginUid);
 				try {
-					ResourceLocation pluginUid = plugin.getPluginUid();
-					timer.begin(title, pluginUid);
 					func.accept(plugin);
-					timer.end();
 				} catch (RuntimeException | LinkageError e) {
 					if (plugin instanceof VanillaPlugin) {
 						throw e;
 					}
-					LOGGER.error("Caught an error from mod plugin: {} {}", plugin.getClass(), plugin.getPluginUid(), e);
+					LOGGER.error("Caught an error from mod plugin: {} {}", plugin.getClass(), pluginUid, e);
 				}
+				timer.end(runnable);
 			}
 		}
 	}
