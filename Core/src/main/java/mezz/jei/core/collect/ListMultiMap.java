@@ -21,10 +21,18 @@ public class ListMultiMap<K, V> extends MultiMap<K, V, List<V>> {
 		super(map, collectionSupplier);
 	}
 
+	@Override
+	protected List<V> wrapSynchronized(List<V> collection) {
+		return Collections.synchronizedList(collection);
+	}
+
+	@Override
 	public List<V> get(K key) {
 		List<V> list = map.get(key);
 		if (list != null) {
-			return Collections.unmodifiableList(list);
+			synchronized (list) {
+				return Collections.unmodifiableList(list);
+			}
 		}
 		return Collections.emptyList();
 	}
@@ -32,7 +40,13 @@ public class ListMultiMap<K, V> extends MultiMap<K, V, List<V>> {
 	@Override
 	public ImmutableListMultimap<K, V> toImmutable() {
 		ImmutableListMultimap.Builder<K, V> builder = ImmutableListMultimap.builder();
-		map.forEach(builder::putAll);
+		synchronized (this.map) {
+			map.forEach((key, collection) -> {
+				synchronized (collection) {
+					builder.putAll(key, collection);
+				}
+			});
+		}
 		return builder.build();
 	}
 }
