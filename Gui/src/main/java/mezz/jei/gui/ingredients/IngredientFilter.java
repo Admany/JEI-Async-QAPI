@@ -119,12 +119,15 @@ public class IngredientFilter implements
 	}
 
 	public <V> void addIngredient(IListElementInfo<V> info) {
+		addIngredientInternal(info);
+		invalidateCache();
+		notifyListenersOfChange();
+	}
+
+	private <V> void addIngredientInternal(IListElementInfo<V> info) {
 		IListElement<V> element = info.getElement();
 		updateHiddenState(element);
-
 		this.elementSearch.add(info, ingredientManager);
-
-		invalidateCache();
 	}
 
 	public void invalidateCache() {
@@ -178,6 +181,24 @@ public class IngredientFilter implements
 	}
 
 	@Override
+	public <V> void onIngredientsVisibilityChanged(Collection<ITypedIngredient<V>> ingredients, boolean visible) {
+		boolean changed = false;
+		for (ITypedIngredient<V> ingredient : ingredients) {
+			IIngredientType<V> ingredientType = ingredient.getType();
+			IIngredientHelper<V> ingredientHelper = ingredientManager.getIngredientHelper(ingredientType);
+			IListElement<V> match = this.elementSearch.findElement(ingredient, ingredientHelper);
+			if (match != null && match.isVisible() != visible) {
+				match.setVisible(visible);
+				changed = true;
+			}
+		}
+		if (changed) {
+			invalidateCache();
+			notifyListenersOfChange();
+		}
+	}
+
+	@Override
 	public List<IElement<?>> getElements() {
 		String filterText = this.filterTextSource.getFilterText();
 		filterText = filterText.toLowerCase();
@@ -225,24 +246,31 @@ public class IngredientFilter implements
 
 	@Override
 	public <V> void onIngredientsAdded(IIngredientHelper<V> ingredientHelper, Collection<ITypedIngredient<V>> ingredients) {
+		boolean changed = false;
 		for (ITypedIngredient<V> value : ingredients) {
 			IListElement<V> matchingElement = this.elementSearch.findElement(value, ingredientHelper);
 			if (matchingElement != null) {
-				updateHiddenState(matchingElement);
+				if (updateHiddenState(matchingElement)) {
+					changed = true;
+				}
 				if (DebugConfig.isDebugModeEnabled()) {
 					LOGGER.debug("Updated ingredient: {}", ingredientHelper.getErrorInfo(value.getIngredient()));
 				}
 			} else {
 				IListElementInfo<V> listElementInfo = ListElementInfo.create(value, this.ingredientManager, modIdHelper);
 				if (listElementInfo != null) {
-					addIngredient(listElementInfo);
+					addIngredientInternal(listElementInfo);
+					changed = true;
 					if (DebugConfig.isDebugModeEnabled()) {
 						LOGGER.debug("Added ingredient: {}", ingredientHelper.getErrorInfo(value.getIngredient()));
 					}
 				}
 			}
 		}
-		invalidateCache();
+		if (changed) {
+			invalidateCache();
+			notifyListenersOfChange();
+		}
 	}
 
 	@Override

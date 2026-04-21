@@ -44,15 +44,29 @@ public class IngredientBlacklistInternal implements IIngredientManager.IIngredie
 
 	@Override
 	public <V> void onIngredientsAdded(IIngredientHelper<V> ingredientHelper, Collection<ITypedIngredient<V>> ingredients) {
+		Set<ITypedIngredient<V>> changed = new HashSet<>();
 		for (ITypedIngredient<V> ingredient : ingredients) {
-			removeIngredientFromBlacklist(ingredient, ingredientHelper);
+			Object uid = ingredientHelper.getUid(ingredient, UidContext.Ingredient);
+			if (uidBlacklist.remove(uid)) {
+				changed.add(ingredient);
+			}
+		}
+		if (!changed.isEmpty()) {
+			notifyListenersOfVisibilityChange(changed, true);
 		}
 	}
 
 	@Override
 	public <V> void onIngredientsRemoved(IIngredientHelper<V> ingredientHelper, Collection<ITypedIngredient<V>> ingredients) {
+		Set<ITypedIngredient<V>> changed = new HashSet<>();
 		for (ITypedIngredient<V> ingredient : ingredients) {
-			addIngredientToBlacklist(ingredient, ingredientHelper);
+			Object uid = ingredientHelper.getUid(ingredient, UidContext.Ingredient);
+			if (uidBlacklist.add(uid)) {
+				changed.add(ingredient);
+			}
+		}
+		if (!changed.isEmpty()) {
+			notifyListenersOfVisibilityChange(changed, false);
 		}
 	}
 
@@ -60,6 +74,13 @@ public class IngredientBlacklistInternal implements IIngredientManager.IIngredie
 		IngredientVisibility ingredientVisibility = ingredientVisibilityRef.get();
 		if (ingredientVisibility != null) {
 			ingredientVisibility.notifyListeners(ingredient, visible);
+		}
+	}
+
+	private <T> void notifyListenersOfVisibilityChange(Collection<ITypedIngredient<T>> ingredients, boolean visible) {
+		IngredientVisibility ingredientVisibility = ingredientVisibilityRef.get();
+		if (ingredientVisibility != null) {
+			ingredientVisibility.notifyListeners(ingredients, visible);
 		}
 	}
 }
