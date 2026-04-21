@@ -213,6 +213,27 @@ public class IngredientFilter implements
 	}
 
 	@Override
+	public <V> void onIngredientVisibilityChanged(Collection<ITypedIngredient<V>> ingredients, boolean visible) {
+		boolean changed = false;
+		for (ITypedIngredient<V> ingredient : ingredients) {
+			IIngredientType<V> ingredientType = ingredient.getType();
+			IIngredientHelper<V> ingredientHelper = ingredientManager.getIngredientHelper(ingredientType);
+			Optional<IListElement<V>> elementOpt = this.elementSearch.findElement(ingredient, ingredientHelper);
+			if (elementOpt.isPresent()) {
+				IListElement<V> element = elementOpt.get();
+				if (element.isVisible() != visible) {
+					element.setVisible(visible);
+					changed = true;
+				}
+			}
+		}
+		if (changed) {
+			invalidateCache();
+			notifyListenersOfChange();
+		}
+	}
+
+	@Override
 	public List<IElement<?>> getElements() {
 		String filterText = this.filterTextSource.getFilterText();
 		filterText = filterText.toLowerCase();

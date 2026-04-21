@@ -47,15 +47,31 @@ public class IngredientBlacklistInternal implements IIngredientManager.IIngredie
 
 	@Override
 	public <V> void onIngredientsAdded(IIngredientHelper<V> ingredientHelper, Collection<ITypedIngredient<V>> ingredients) {
-		for (ITypedIngredient<V> ingredient : ingredients) {
-			removeIngredientFromBlacklist(ingredient, ingredientHelper);
+		Set<ITypedIngredient<V>> changed = new HashSet<>();
+		for (ITypedIngredient<V> typedIngredient : ingredients) {
+			V ingredient = typedIngredient.getIngredient();
+			String uniqueName = ingredientHelper.getUniqueId(ingredient, UidContext.Ingredient);
+			if (uidBlacklist.remove(uniqueName)) {
+				changed.add(typedIngredient);
+			}
+		}
+		if (!changed.isEmpty()) {
+			notifyListenersOfVisibilityChange(changed, true);
 		}
 	}
 
 	@Override
 	public <V> void onIngredientsRemoved(IIngredientHelper<V> ingredientHelper, Collection<ITypedIngredient<V>> ingredients) {
-		for (ITypedIngredient<V> ingredient : ingredients) {
-			addIngredientToBlacklist(ingredient, ingredientHelper);
+		Set<ITypedIngredient<V>> changed = new HashSet<>();
+		for (ITypedIngredient<V> typedIngredient : ingredients) {
+			V ingredient = typedIngredient.getIngredient();
+			String uniqueName = ingredientHelper.getUniqueId(ingredient, UidContext.Ingredient);
+			if (uidBlacklist.add(uniqueName)) {
+				changed.add(typedIngredient);
+			}
+		}
+		if (!changed.isEmpty()) {
+			notifyListenersOfVisibilityChange(changed, false);
 		}
 	}
 
@@ -63,6 +79,13 @@ public class IngredientBlacklistInternal implements IIngredientManager.IIngredie
 		IngredientVisibility ingredientVisibility = ingredientVisibilityRef.get();
 		if (ingredientVisibility != null) {
 			ingredientVisibility.notifyListeners(ingredient, visible);
+		}
+	}
+
+	private <T> void notifyListenersOfVisibilityChange(Collection<ITypedIngredient<T>> ingredients, boolean visible) {
+		IngredientVisibility ingredientVisibility = ingredientVisibilityRef.get();
+		if (ingredientVisibility != null) {
+			ingredientVisibility.notifyListeners(ingredients, visible);
 		}
 	}
 }

@@ -9,6 +9,8 @@ import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.core.util.WeakList;
 import mezz.jei.library.config.EditModeConfig;
 
+import java.util.Collection;
+
 public class IngredientVisibility implements IIngredientVisibility {
 	private final IngredientBlacklistInternal blacklist;
 	private final IClientToggleState toggleState;
@@ -63,5 +65,9 @@ public class IngredientVisibility implements IIngredientVisibility {
 
 	public <V> void notifyListeners(ITypedIngredient<V> ingredient, boolean visible) {
 		listeners.forEach(listener -> listener.onIngredientVisibilityChanged(ingredient, visible));
+	}
+
+	public <V> void notifyListeners(Collection<ITypedIngredient<V>> ingredients, boolean visible) {
+		listeners.forEach(listener -> listener.onIngredientVisibilityChanged(ingredients, visible));
 	}
 }
