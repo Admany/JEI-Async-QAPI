@@ -96,6 +96,8 @@ public final class Internal {
 	}
 
 	public static IJeiRuntime getJeiRuntime() {
+		Preconditions.checkState(jeiRuntime != null, "Jei Client Configs have not been created yet.");
+
 		return jeiRuntime;
 	}
 
