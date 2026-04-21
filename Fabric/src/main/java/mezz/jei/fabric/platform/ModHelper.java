@@ -3,6 +3,7 @@ package mezz.jei.fabric.platform;
 import mezz.jei.common.platform.IPlatformModHelper;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
+import net.fabricmc.loader.api.Version;
 import net.fabricmc.loader.api.metadata.ModMetadata;
 import org.apache.commons.lang3.StringUtils;
 
@@ -23,6 +24,16 @@ public class ModHelper implements IPlatformModHelper {
 			.map(ModContainer::getMetadata)
 			.map(ModMetadata::getName)
 			.orElseGet(() -> StringUtils.capitalize(modId));
+	}
+
+	@Override
+	public String getModVersionForModId(String modId) {
+		return FabricLoader.getInstance()
+			.getModContainer(modId)
+			.map(ModContainer::getMetadata)
+			.map(ModMetadata::getVersion)
+			.map(Version::getFriendlyString)
+			.orElse("unknown");
 	}
 
 	@Override

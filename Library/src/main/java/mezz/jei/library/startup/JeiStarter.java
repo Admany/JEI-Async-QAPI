@@ -53,6 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class JeiStarter {
 	private static final Logger LOGGER = LogManager.getLogger();
+	private static final String EXPECTED_VERSION = "19.27.0.129-async-14";
 	private static final ExecutorService LOADING_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
 		Thread t = new Thread(r, "JEI Background Loader");
 		t.setDaemon(true);
@@ -76,6 +77,12 @@ public final class JeiStarter {
 	private volatile LoadingState loadingState = LoadingState.NOT_STARTED;
 
 	public JeiStarter(StartData data) {
+		String currentVersion = Services.PLATFORM.getModHelper().getModVersionForModId("jei");
+		if (!currentVersion.equals("unknown") && !currentVersion.contains(EXPECTED_VERSION)) {
+			LOGGER.fatal("JEI-Async version mismatch! Expected {}, but found {}. This usually means another version of JEI is installed.", EXPECTED_VERSION, currentVersion);
+			throw new RuntimeException("JEI-Async incompatibility: Another version of JEI (" + currentVersion + ") was detected.");
+		}
+
 		ErrorUtil.checkNotEmpty(data.plugins(), "plugins");
 		this.data = data;
 		this.plugins = data.plugins();
