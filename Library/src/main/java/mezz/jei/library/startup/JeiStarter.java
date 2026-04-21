@@ -272,11 +272,7 @@ public final class JeiStarter {
 			screenHelper
 		);
 
-		if (useAsyncFallback) {
-			PluginCaller.callOnPluginsWithFallback("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration), incompatiblePluginStore);
-		} else {
-			PluginCaller.callOnPlugins("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration));
-		}
+		PluginCaller.callOnPlugins("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration));
 
 		JeiRuntime jeiRuntime = new JeiRuntime(
 			recipeManager,

@@ -6,11 +6,11 @@ import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.metadata.ModMetadata;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ModHelper implements IPlatformModHelper {
-	private final Map<String, String> cache = new HashMap<>();
+	private final Map<String, String> cache = new ConcurrentHashMap<>();
 
 	@Override
 	public String getModNameForModId(String modId) {
