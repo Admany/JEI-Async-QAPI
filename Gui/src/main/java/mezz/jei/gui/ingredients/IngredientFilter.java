@@ -11,7 +11,6 @@ import mezz.jei.common.config.DebugConfig;
 import mezz.jei.common.config.IClientConfig;
 import mezz.jei.common.config.IClientToggleState;
 import mezz.jei.common.config.IIngredientFilterConfig;
-import mezz.jei.common.util.JeiThreadFactory;
 import mezz.jei.gui.filter.IFilterTextSource;
 import mezz.jei.gui.overlay.elements.IElement;
 import mezz.jei.gui.overlay.IIngredientGridSource;
@@ -89,33 +88,30 @@ public class IngredientFilter implements
 
 		this.elementSearch = createElementSearch(clientConfig, elementPrefixParser);
 
-		Runnable initAction = () -> {
-			if (closed) return;
-			LOGGER.info("Adding {} ingredients", ingredients.size());
-			addIngredients(ingredients);
+		LOGGER.info("Adding {} ingredients", ingredients.size());
+		for (IListElementInfo<?> ingredient : ingredients) {
+			updateHiddenState(ingredient.getElement());
+		}
+		if (this.elementSearch instanceof ElementSearch elementSearchImpl && searchStringCache != null) {
+			elementSearchImpl.addAll(ingredients, ingredientManager, searchStringCache);
+		} else {
+			this.elementSearch.addAll(ingredients, ingredientManager);
+		}
+		LOGGER.info("Added {} ingredients", ingredients.size());
+		if (DebugConfig.isLogSuffixTreeStatsEnabled()) {
+			this.elementSearch.logStatistics();
+		}
 
-			LOGGER.info("Added {} ingredients", ingredients.size());
-			if (DebugConfig.isLogSuffixTreeStatsEnabled()) {
-				this.elementSearch.logStatistics();
-			}
-
-			this.filterTextSource.addListener(filterText -> {
-				invalidateCache();
-				notifyListenersOfChange();
-			});
-
+		this.filterTextSource.addListener(filterText -> {
 			invalidateCache();
 			notifyListenersOfChange();
-		};
+		});
 
-		// Check if we're running in a test environment or if async loading is disabled
-		if (System.getProperty("java.class.path").contains("junit") || !DebugConfig.isAsyncLoadingEnabled()) {
-			initAction.run();
-		} else {
-			CompletableFuture<Void> initTask = JeiThreadFactory.submitPluginTask(initAction);
-			tasks.add(initTask);
-			initTask.thenRun(() -> tasks.remove(initTask));
-		}
+		clientToggleState.addEditModeToggleListener(this);
+
+		// Pre-build the sorted ingredient list cache on the current thread (background thread during async loading)
+		// to avoid a main-thread freeze when the user first opens their inventory.
+		getElements();
 
 		clientToggleState.addEditModeToggleListener(this);
 	}
@@ -279,36 +275,24 @@ public class IngredientFilter implements
 
 	@Override
 	public <V> void onIngredientsAdded(IIngredientHelper<V> ingredientHelper, Collection<ITypedIngredient<V>> ingredients) {
-		if (closed) return;
-		Runnable addAction = () -> {
-			if (closed) return;
-			List<IListElementInfo<?>> toAdd = new ArrayList<>();
-			for (ITypedIngredient<V> value : ingredients) {
-				if (closed) return;
-				Optional<IListElement<V>> matchingElementOptional = this.elementSearch.findElement(value, ingredientHelper);
-				if (matchingElementOptional.isPresent()) {
-					IListElement<V> matchingElement = matchingElementOptional.get();
-					updateHiddenState(matchingElement);
-				} else {
-					IListElementInfo<V> listElementInfo = ListElementInfo.create(value, this.ingredientManager, modIdHelper);
-					if (listElementInfo != null) {
-						toAdd.add(listElementInfo);
+		for (ITypedIngredient<V> value : ingredients) {
+			Optional<IListElement<V>> matchingElement = this.elementSearch.findElement(value, ingredientHelper);
+			if (matchingElement.isPresent()) {
+				updateHiddenState(matchingElement.get());
+				if (DebugConfig.isDebugModeEnabled()) {
+					LOGGER.debug("Updated ingredient: {}", ingredientHelper.getErrorInfo(value.getIngredient()));
+				}
+			} else {
+				IListElementInfo<V> listElementInfo = ListElementInfo.create(value, this.ingredientManager, modIdHelper);
+				if (listElementInfo != null) {
+					addIngredient(listElementInfo);
+					if (DebugConfig.isDebugModeEnabled()) {
+						LOGGER.debug("Added ingredient: {}", ingredientHelper.getErrorInfo(value.getIngredient()));
 					}
 				}
 			}
-			if (!toAdd.isEmpty() && !closed) {
-				addIngredients(toAdd);
-				notifyListenersOfChange();
-			}
-		};
-
-		if (System.getProperty("java.class.path").contains("junit") || !DebugConfig.isAsyncLoadingEnabled()) {
-			addAction.run();
-		} else {
-			CompletableFuture<Void> addTask = JeiThreadFactory.submitPluginTask(addAction);
-			tasks.add(addTask);
-			addTask.thenRun(() -> tasks.remove(addTask));
 		}
+		invalidateCache();
 	}
 
 	@Override

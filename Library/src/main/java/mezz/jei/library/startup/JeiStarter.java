@@ -3,9 +3,7 @@ package mezz.jei.library.startup;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.recipe.transfer.IRecipeTransferManager;
-import mezz.jei.api.runtime.IIngredientFilter;
 import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.api.runtime.IScreenHelper;
 import mezz.jei.common.Internal;
 import mezz.jei.common.config.ConfigManager;
@@ -17,7 +15,7 @@ import mezz.jei.common.config.file.FileWatcher;
 import mezz.jei.common.config.file.IConfigSchemaBuilder;
 import mezz.jei.common.platform.Services;
 import mezz.jei.common.util.ErrorUtil;
-import mezz.jei.common.util.JeiThreadFactory;
+import mezz.jei.common.util.RegistryUtil;
 import mezz.jei.core.util.LoggedTimer;
 import mezz.jei.library.color.ColorHelper;
 import mezz.jei.library.config.ColorNameConfig;
@@ -39,17 +37,26 @@ import mezz.jei.library.runtime.JeiHelpers;
 import mezz.jei.library.runtime.JeiRuntime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.sounds.SoundEvents;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class JeiStarter {
 	private static final Logger LOGGER = LogManager.getLogger();
-	private static final String EXPECTED_VERSION = "15.20.0"; // Current JEI-Async version
+	private static final ExecutorService LOADING_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+		Thread t = new Thread(r, "JEI Background Loader");
+		t.setDaemon(true);
+		return t;
+	});
+	private static final String EXPECTED_VERSION = "15.20.0.129-async-15"; // Current JEI-Async version
 
 	private final StartData data;
 	private final List<IModPlugin> plugins;
@@ -113,30 +120,29 @@ public final class JeiStarter {
 		PluginCaller.callOnPlugins("Sending ConfigManager", plugins, p -> p.onConfigManagerAvailable(configManager));
 	}
 
-	public java.util.concurrent.CompletableFuture<Void> start() {
+	public void start() {
 		Minecraft minecraft = Minecraft.getInstance();
 		if (minecraft.level == null) {
 			LOGGER.error("Failed to start JEI, there is no Minecraft client level.");
-			return java.util.concurrent.CompletableFuture.completedFuture(null);
+			return;
 		}
 
-		if (isStarting) {
-			LOGGER.warn("JEI is already starting.");
-			return java.util.concurrent.CompletableFuture.completedFuture(null);
-		}
-
-		isStarting = true;
+		// Main thread: capture RegistryAccess (requires minecraft.level)
+		RegistryAccess registryAccess = minecraft.level.registryAccess();
+		RegistryUtil.setRegistryAccess(registryAccess);
 
 		if (!DebugConfig.isAsyncLoadingEnabled()) {
+			// Sync mode: run everything on main thread (unchanged behavior)
 			doLoadingSync();
-			return java.util.concurrent.CompletableFuture.completedFuture(null);
+			return;
 		}
 
+		// Async mode: launch background task
 		cancelled = false;
 		loadingState = LoadingState.INITIALIZING;
 		LOGGER.info("Starting JEI background loading...");
 
-		return java.util.concurrent.CompletableFuture.runAsync(() -> {
+		CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
 			try {
 				doLoadingAsync();
 			} catch (Exception e) {
@@ -144,7 +150,8 @@ public final class JeiStarter {
 					LOGGER.error("JEI background loading failed catastrophically", e);
 				}
 			}
-		}, JeiThreadFactory.getPluginLoaderExecutor());
+		}, LOADING_EXECUTOR);
+		loadingFuture.set(future);
 	}
 
 	private void doLoadingSync() {
@@ -303,21 +310,23 @@ public final class JeiStarter {
 
 	public void stop() {
 		LOGGER.info("Stopping JEI");
-		List<IModPlugin> plugins = data.plugins();
-		PluginCaller.callOnPlugins("Sending Runtime Unavailable", plugins, IModPlugin::onRuntimeUnavailable);
+		cancelled = true;
+		loadingState = LoadingState.NOT_STARTED;
+		Internal.setLoadingProgress(null);
 
-		try {
-			IJeiRuntime jeiRuntime = Internal.getJeiRuntime();
-			IIngredientFilter ingredientFilter = jeiRuntime.getIngredientFilter();
-			if (ingredientFilter instanceof AutoCloseable closeable) {
-				closeable.close();
-			}
-		} catch (Exception e) {
-			LOGGER.error("Error while stopping ingredient filter", e);
+		CompletableFuture<Void> future = loadingFuture.getAndSet(null);
+		if (future != null && !future.isDone()) {
+			future.cancel(true);
+			LOGGER.info("Cancelled JEI background loading");
 		}
 
+		List<IModPlugin> plugins = data.plugins();
+		PluginCaller.callOnPlugins("Sending Runtime Unavailable", plugins, IModPlugin::onRuntimeUnavailable);
 		Internal.setRuntime(null);
-		fileWatcher.stop();
-		JeiThreadFactory.shutdown();
+		RegistryUtil.setRegistryAccess(null);
+	}
+
+	public LoadingState getLoadingState() {
+		return loadingState;
 	}
 }

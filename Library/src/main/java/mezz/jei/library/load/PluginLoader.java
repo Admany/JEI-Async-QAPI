@@ -49,7 +49,6 @@ import mezz.jei.library.plugins.vanilla.VanillaPlugin;
 import mezz.jei.library.plugins.vanilla.VanillaRecipeFactory;
 import mezz.jei.library.plugins.vanilla.anvil.SmithingRecipeCategory;
 import mezz.jei.library.plugins.vanilla.crafting.CraftingRecipeCategory;
-import mezz.jei.library.recipes.ParallelRecipeRegistrar;
 import mezz.jei.library.recipes.RecipeManager;
 import mezz.jei.library.recipes.RecipeManagerInternal;
 import mezz.jei.library.runtime.JeiHelpers;
@@ -229,16 +228,24 @@ public final class PluginLoader {
 
 		RecipeRegistration recipeRegistration = new RecipeRegistration(jeiHelpers, ingredientManager, recipeManagerInternal);
 
-		// Use parallel recipe registration if async loading is enabled
-		if (mezz.jei.common.config.DebugConfig.isAsyncLoadingEnabled()) {
-			ParallelRecipeRegistrar.registerRecipesParallel(plugins, recipeRegistration);
-		} else {
-			PluginCaller.callOnPlugins("Registering recipes", plugins, p -> p.registerRecipes(recipeRegistration));
-		}
-
+		callPlugins("Registering recipes", plugins, p -> p.registerRecipes(recipeRegistration), useAsyncFallback, incompatiblePluginStore);
 		recipeManagerInternal.compact();
 
 		timer.stop();
 		return new RecipeManager(recipeManagerInternal, ingredientManager);
+	}
+
+	private static void callPlugins(
+			String title,
+			List<IModPlugin> plugins,
+			java.util.function.Consumer<IModPlugin> func,
+			boolean useAsyncFallback,
+			IncompatiblePluginStore incompatiblePluginStore
+	) {
+		if (useAsyncFallback && incompatiblePluginStore != null) {
+			PluginCaller.callOnPluginsWithFallback(title, plugins, func, incompatiblePluginStore);
+		} else {
+			PluginCaller.callOnPlugins(title, plugins, func);
+		}
 	}
 }
