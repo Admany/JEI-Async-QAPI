@@ -5,11 +5,14 @@ import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.ModIds;
 import mezz.jei.api.registration.IRuntimeRegistration;
 import mezz.jei.api.runtime.IJeiRuntime;
+import mezz.jei.gui.events.GuiEventHandler;
 import mezz.jei.gui.startup.ResourceReloadHandler;
 import mezz.jei.neoforge.events.RuntimeEventSubscriptions;
 import mezz.jei.neoforge.startup.EventRegistration;
 import mezz.jei.gui.startup.JeiEventHandlers;
 import mezz.jei.gui.startup.JeiGuiStarter;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.common.NeoForge;
 import org.apache.logging.log4j.LogManager;
@@ -51,6 +54,14 @@ public class NeoForgeGuiPlugin implements IModPlugin {
 	public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
 		if (pendingEventHandlers != null) {
 			EventRegistration.registerEvents(runtimeSubscriptions, pendingEventHandlers);
+
+			GuiEventHandler guiEventHandler = pendingEventHandlers.guiEventHandler();
+			Screen currentScreen = Minecraft.getInstance().screen;
+			if (currentScreen != null) {
+				guiEventHandler.onGuiInit(currentScreen);
+				guiEventHandler.onGuiOpen(currentScreen);
+			}
+
 			pendingEventHandlers = null;
 		}
 	}

@@ -6,9 +6,12 @@ import mezz.jei.api.constants.ModIds;
 import mezz.jei.api.registration.IRuntimeRegistration;
 import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.fabric.startup.EventRegistration;
+import mezz.jei.gui.events.GuiEventHandler;
 import mezz.jei.gui.startup.JeiEventHandlers;
 import mezz.jei.gui.startup.JeiGuiStarter;
 import mezz.jei.gui.startup.ResourceReloadHandler;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,6 +24,7 @@ public class FabricGuiPlugin implements IModPlugin {
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static @Nullable IJeiRuntime runtime;
 	private static @Nullable ResourceReloadHandler resourceReloadHandler;
+	private static @Nullable JeiEventHandlers pendingEventHandlers;
 
 	private final EventRegistration eventRegistration = new EventRegistration();
 
@@ -33,18 +37,33 @@ public class FabricGuiPlugin implements IModPlugin {
 	public void registerRuntime(IRuntimeRegistration registration) {
 		JeiEventHandlers eventHandlers = JeiGuiStarter.start(registration);
 		resourceReloadHandler = eventHandlers.resourceReloadHandler();
-		eventRegistration.setEventHandlers(eventHandlers);
+
+		pendingEventHandlers = eventHandlers;
 	}
 
 	@Override
 	public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
 		runtime = jeiRuntime;
+
+		if (pendingEventHandlers != null) {
+			eventRegistration.setEventHandlers(pendingEventHandlers);
+
+			GuiEventHandler guiEventHandler = pendingEventHandlers.guiEventHandler();
+			Screen currentScreen = Minecraft.getInstance().screen;
+			if (currentScreen != null) {
+				guiEventHandler.onGuiInit(currentScreen);
+				guiEventHandler.onGuiOpen(currentScreen);
+			}
+
+			pendingEventHandlers = null;
+		}
 	}
 
-	@Override
+@Override
 	public void onRuntimeUnavailable() {
 		runtime = null;
 		resourceReloadHandler = null;
+		pendingEventHandlers = null;
 		LOGGER.info("Stopping JEI GUI");
 		eventRegistration.clear();
 	}
