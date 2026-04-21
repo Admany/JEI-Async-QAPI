@@ -22,10 +22,17 @@ public class SetMultiMap<K, V> extends MultiMap<K, V, Set<V>> {
 	}
 
 	@Override
+	protected Set<V> wrapSynchronized(Set<V> collection) {
+		return Collections.synchronizedSet(collection);
+	}
+
+	@Override
 	public Set<V> get(K key) {
 		Set<V> collection = map.get(key);
 		if (collection != null) {
-			return Collections.unmodifiableSet(collection);
+			synchronized (collection) {
+				return Collections.unmodifiableSet(collection);
+			}
 		}
 		return Collections.emptySet();
 	}
@@ -33,7 +40,13 @@ public class SetMultiMap<K, V> extends MultiMap<K, V, Set<V>> {
 	@Override
 	public ImmutableSetMultimap<K, V> toImmutable() {
 		ImmutableSetMultimap.Builder<K, V> builder = ImmutableSetMultimap.builder();
-		map.forEach(builder::putAll);
+		synchronized (this.map) {
+			map.forEach((key, collection) -> {
+				synchronized (collection) {
+					builder.putAll(key, collection);
+				}
+			});
+		}
 		return builder.build();
 	}
 }

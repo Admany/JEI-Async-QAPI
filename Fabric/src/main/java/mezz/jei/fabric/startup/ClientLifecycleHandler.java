@@ -9,10 +9,12 @@ import mezz.jei.fabric.events.JeiLifecycleEvents;
 import mezz.jei.fabric.network.ClientNetworkHandler;
 import mezz.jei.fabric.network.ConnectionToServer;
 import mezz.jei.gui.config.InternalKeyMappings;
+import mezz.jei.gui.overlay.LoadingOverlayRenderer;
 import mezz.jei.library.startup.JeiStarter;
 import mezz.jei.library.startup.StartData;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import org.apache.logging.log4j.LogManager;
@@ -70,6 +72,13 @@ public class ClientLifecycleHandler {
 				}
 			}
 		});
+
+		// Register loading overlay renderer (permanent, independent of runtime)
+		ScreenEvents.BEFORE_INIT.register((client, screen, scaledWidth, scaledHeight) ->
+			ScreenEvents.afterRender(screen).register((s, guiGraphics, mouseX, mouseY, tickDelta) ->
+				LoadingOverlayRenderer.renderLoadingOverlay(s, guiGraphics)
+			)
+		);
 	}
 
 	public ResourceManagerReloadListener getReloadListener() {
@@ -99,10 +108,6 @@ public class ClientLifecycleHandler {
 
 		this.jeiStarter.start();
 		running = true;
-
-		// Fire initialization event for mods that depend on JEI being ready
-		JeiLifecycleEvents.INITIALIZED.invoker().run();
-		LOGGER.info("JEI has finished initializing. Mods can now access the JEI runtime via IModPlugin.onRuntimeAvailable().");
 	}
 
 	private void stopJei() {

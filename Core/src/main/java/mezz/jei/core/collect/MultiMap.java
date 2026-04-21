@@ -17,18 +17,28 @@ public class MultiMap<K, V, T extends Collection<V>> {
 	private final Function<K, T> collectionMappingFunction;
 
 	public MultiMap(Supplier<T> collectionSupplier) {
-		this(new HashMap<>(), collectionSupplier);
+		this(Collections.synchronizedMap(new HashMap<>()), collectionSupplier);
 	}
 
 	public MultiMap(Map<K, T> map, Supplier<T> collectionSupplier) {
 		this.map = map;
-		this.collectionMappingFunction = (k -> collectionSupplier.get());
+		this.collectionMappingFunction = (k -> {
+			T collection = collectionSupplier.get();
+			return wrapSynchronized(collection);
+		});
+	}
+
+	@SuppressWarnings("unchecked")
+	protected T wrapSynchronized(T collection) {
+		return (T) Collections.synchronizedCollection(collection);
 	}
 
 	public Collection<V> get(K key) {
 		T collection = map.get(key);
 		if (collection != null) {
-			return Collections.unmodifiableCollection(collection);
+			synchronized (collection) {
+				return Collections.unmodifiableCollection(collection);
+			}
 		}
 		return Collections.emptyList();
 	}
@@ -67,8 +77,12 @@ public class MultiMap<K, V, T extends Collection<V>> {
 
 	public Collection<V> allValues() {
 		List<V> list = new ArrayList<>();
-		for (T t : this.map.values()) {
-			list.addAll(t);
+		synchronized (this.map) {
+			for (T t : this.map.values()) {
+				synchronized (t) {
+					list.addAll(t);
+				}
+			}
 		}
 		return list;
 	}

@@ -26,6 +26,8 @@ import mezz.jei.library.config.ModIdFormatConfig;
 import mezz.jei.library.config.RecipeCategorySortingConfig;
 import mezz.jei.library.focus.FocusFactory;
 import mezz.jei.library.ingredients.subtypes.SubtypeManager;
+import mezz.jei.library.load.IncompatiblePluginStore;
+import mezz.jei.library.load.LoadingState;
 import mezz.jei.library.load.PluginCaller;
 import mezz.jei.library.load.PluginHelper;
 import mezz.jei.library.load.PluginLoader;
@@ -35,16 +37,19 @@ import mezz.jei.library.plugins.vanilla.VanillaPlugin;
 import mezz.jei.library.recipes.RecipeManager;
 import mezz.jei.library.runtime.JeiHelpers;
 import mezz.jei.library.runtime.JeiRuntime;
-import mezz.jei.library.load.registration.RuntimeRegistrationBuilder;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.sounds.SoundEvents;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class JeiStarter {
 	private static final Logger LOGGER = LogManager.getLogger();
+	private static final String EXPECTED_VERSION = "15.20.0"; // Current JEI-Async version
 
 	private final StartData data;
 	private final List<IModPlugin> plugins;
@@ -52,14 +57,26 @@ public final class JeiStarter {
 	private final ModIdFormatConfig modIdFormatConfig;
 	private final ColorNameConfig colorNameConfig;
 	private final RecipeCategorySortingConfig recipeCategorySortingConfig;
-	@SuppressWarnings("FieldCanBeLocal")
+	@SuppressWarnings("FieldBeLocal")
 	private final FileWatcher fileWatcher = new FileWatcher("JEI Config File Watcher");
 	private final ConfigManager configManager;
 	private final JeiClientConfigs jeiClientConfigs;
+	private final IncompatiblePluginStore incompatiblePluginStore;
 	private volatile boolean isStarting = false;
+	private final AtomicReference<java.util.concurrent.CompletableFuture<Void>> loadingFuture = new AtomicReference<>();
+	private volatile boolean cancelled = false;
+	private volatile LoadingState loadingState = LoadingState.NOT_STARTED;
 
 	public JeiStarter(StartData data) {
 		ErrorUtil.checkNotEmpty(data.plugins(), "plugins");
+
+		// Check for version mismatch which might indicate another JEI version is present
+		String currentVersion = Services.PLATFORM.getModHelper().getModVersionForModId("jei");
+		if (!currentVersion.equals("unknown") && !currentVersion.contains(EXPECTED_VERSION)) {
+			LOGGER.fatal("JEI-Async version mismatch! Expected {}, but found {}. This usually means another version of JEI is installed.", EXPECTED_VERSION, currentVersion);
+			throw new RuntimeException("JEI-Async incompatibility: Another version of JEI (" + currentVersion + ") was detected.");
+		}
+
 		this.data = data;
 		this.plugins = data.plugins();
 		this.vanillaPlugin = PluginHelper.getPluginWithClass(VanillaPlugin.class, plugins)
@@ -91,6 +108,7 @@ public final class JeiStarter {
 		fileWatcher.start();
 
 		this.recipeCategorySortingConfig = new RecipeCategorySortingConfig(configDir.resolve("recipe-category-sort-order.ini"));
+		this.incompatiblePluginStore = new IncompatiblePluginStore(configDir);
 
 		PluginCaller.callOnPlugins("Sending ConfigManager", plugins, p -> p.onConfigManagerAvailable(configManager));
 	}
@@ -108,84 +126,175 @@ public final class JeiStarter {
 		}
 
 		isStarting = true;
+
+		if (!DebugConfig.isAsyncLoadingEnabled()) {
+			doLoadingSync();
+			return java.util.concurrent.CompletableFuture.completedFuture(null);
+		}
+
+		cancelled = false;
+		loadingState = LoadingState.INITIALIZING;
+		LOGGER.info("Starting JEI background loading...");
+
 		return java.util.concurrent.CompletableFuture.runAsync(() -> {
 			try {
-				LoggedTimer totalTime = new LoggedTimer();
-				totalTime.start("Starting JEI (Background)");
-
-				IColorHelper colorHelper = new ColorHelper(colorNameConfig);
-				IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
-				SubtypeManager subtypeManager = PluginLoader.registerSubtypes(data);
-				IIngredientManager ingredientManager = PluginLoader.registerIngredients(data, subtypeManager, colorHelper, ingredientFilterConfig);
-
-				FocusFactory focusFactory = new FocusFactory(ingredientManager);
-
-				Path configDir = Services.PLATFORM.getConfigHelper().createJeiConfigDir();
-				EditModeConfig editModeConfig = new EditModeConfig(new EditModeConfig.FileSerializer(configDir.resolve("blacklist.cfg")), ingredientManager);
-
-				JeiHelpers jeiHelpers = PluginLoader.createJeiHelpers(modIdFormatConfig, colorHelper, editModeConfig, focusFactory, ingredientManager, subtypeManager);
-
-				RecipeManager recipeManager = PluginLoader.createRecipeManager(
-					plugins,
-					vanillaPlugin,
-					recipeCategorySortingConfig,
-					jeiHelpers,
-					ingredientManager
-				);
-				IRecipeTransferManager recipeTransferManager = PluginLoader.createRecipeTransferManager(
-					plugins,
-					jeiHelpers,
-					data.serverConnection()
-				);
-
-				IScreenHelper screenHelper = PluginLoader.createGuiScreenHelper(plugins, jeiHelpers, ingredientManager);
-
-				// Pre-build ingredient list in background to avoid main thread hang
-				LOGGER.info("Pre-building ingredient list in background...");
-				List<?> ingredientList = RuntimeRegistrationBuilder.buildIngredientList(ingredientManager, jeiHelpers.getModIdHelper());
-
-				// These parts need to happen on the main thread as they might trigger mod logic or GUI updates
-				minecraft.execute(() -> {
-					LoggedTimer timer = new LoggedTimer();
-					timer.start("Building runtime (Main Thread)");
-
-					RuntimeRegistration runtimeRegistration = new RuntimeRegistration(
-						recipeManager,
-						jeiHelpers,
-						editModeConfig,
-						ingredientManager,
-						recipeTransferManager,
-						screenHelper,
-						ingredientList
-					);
-					PluginCaller.callOnPlugins("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration));
-
-					JeiRuntime jeiRuntime = new JeiRuntime(
-						recipeManager,
-						ingredientManager,
-						data.keyBindings(),
-						jeiHelpers,
-						screenHelper,
-						recipeTransferManager,
-						editModeConfig,
-						runtimeRegistration.getIngredientListOverlay(),
-						runtimeRegistration.getBookmarkOverlay(),
-						runtimeRegistration.getRecipesGui(),
-						runtimeRegistration.getIngredientFilter(),
-						configManager
-					);
-					timer.stop();
-
-					PluginCaller.callOnPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime));
-					Internal.setRuntime(jeiRuntime);
-					totalTime.stop();
-					isStarting = false;
-				});
+				doLoadingAsync();
 			} catch (Exception e) {
-				LOGGER.error("Failed to start JEI in background", e);
-				isStarting = false;
+				if (!cancelled) {
+					LOGGER.error("JEI background loading failed catastrophically", e);
+				}
 			}
 		}, JeiThreadFactory.getPluginLoaderExecutor());
+	}
+
+	private void doLoadingSync() {
+		LoggedTimer totalTime = new LoggedTimer();
+		totalTime.start("Starting JEI");
+
+		JeiRuntime jeiRuntime = buildRuntime(false);
+
+		PluginCaller.callOnPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime));
+		Internal.setRuntime(jeiRuntime);
+
+		totalTime.stop();
+		playLoadCompleteSound();
+	}
+
+	private void doLoadingAsync() {
+		LoggedTimer totalTime = new LoggedTimer();
+		totalTime.start("Starting JEI (background)");
+		Internal.setLoadingProgress("Initializing...");
+
+		JeiRuntime jeiRuntime = buildRuntime(true);
+
+		if (cancelled) {
+			LOGGER.info("JEI background loading was cancelled");
+			Internal.setLoadingProgress(null);
+			return;
+		}
+
+		totalTime.stop();
+
+		Minecraft.getInstance().execute(() -> {
+			if (cancelled) {
+				Internal.setLoadingProgress(null);
+				return;
+			}
+			Internal.setRuntime(jeiRuntime);
+			PluginCaller.callOnPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime));
+			Internal.setLoadingProgress(null);
+			LOGGER.info("JEI has finished background loading and is now available.");
+			playLoadCompleteSound();
+		});
+	}
+
+	private void playLoadCompleteSound() {
+		try {
+			Minecraft minecraft = Minecraft.getInstance();
+			LOGGER.info("Playing JEI load complete sound");
+			minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.0F));
+		} catch (Exception e) {
+			LOGGER.error("Failed to play load complete sound", e);
+		}
+	}
+
+	private JeiRuntime buildRuntime(boolean useAsyncFallback) {
+		loadingState = LoadingState.LOADING_SUBTYPES;
+		Internal.setLoadingProgress("Loading subtypes...");
+		IColorHelper colorHelper = new ColorHelper(colorNameConfig);
+		IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
+		SubtypeManager subtypeManager = PluginLoader.registerSubtypes(data, useAsyncFallback, incompatiblePluginStore);
+
+		if (cancelled) {
+			throw new CancelledException();
+		}
+
+		loadingState = LoadingState.LOADING_INGREDIENTS;
+		Internal.setLoadingProgress("Loading ingredients...");
+		IIngredientManager ingredientManager = PluginLoader.registerIngredients(data, subtypeManager, colorHelper, ingredientFilterConfig, useAsyncFallback, incompatiblePluginStore);
+
+		if (cancelled) {
+			throw new CancelledException();
+		}
+
+		FocusFactory focusFactory = new FocusFactory(ingredientManager);
+
+		Path configDir = Services.PLATFORM.getConfigHelper().createJeiConfigDir();
+		EditModeConfig editModeConfig = new EditModeConfig(new EditModeConfig.FileSerializer(configDir.resolve("blacklist.cfg")), ingredientManager);
+
+		JeiHelpers jeiHelpers = PluginLoader.createJeiHelpers(modIdFormatConfig, colorHelper, editModeConfig, focusFactory, ingredientManager, subtypeManager);
+
+		if (cancelled) {
+			throw new CancelledException();
+		}
+
+		loadingState = LoadingState.LOADING_CATEGORIES;
+		Internal.setLoadingProgress("Loading categories & recipes...");
+		RecipeManager recipeManager = PluginLoader.createRecipeManager(
+			plugins,
+			vanillaPlugin,
+			recipeCategorySortingConfig,
+			jeiHelpers,
+			ingredientManager,
+			useAsyncFallback,
+			incompatiblePluginStore
+		);
+
+		if (cancelled) {
+			throw new CancelledException();
+		}
+
+		loadingState = LoadingState.BUILDING_RUNTIME;
+		Internal.setLoadingProgress("Building runtime...");
+		IRecipeTransferManager recipeTransferManager = PluginLoader.createRecipeTransferManager(
+			plugins,
+			jeiHelpers,
+			data.serverConnection()
+		);
+
+		LoggedTimer timer = new LoggedTimer();
+		timer.start("Building runtime");
+		IScreenHelper screenHelper = PluginLoader.createGuiScreenHelper(plugins, jeiHelpers, ingredientManager);
+
+		RuntimeRegistration runtimeRegistration = new RuntimeRegistration(
+			recipeManager,
+			jeiHelpers,
+			editModeConfig,
+			ingredientManager,
+			recipeTransferManager,
+			screenHelper
+		);
+
+		if (useAsyncFallback) {
+			PluginCaller.callOnPluginsWithFallback("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration), incompatiblePluginStore);
+		} else {
+			PluginCaller.callOnPlugins("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration));
+		}
+
+		JeiRuntime jeiRuntime = new JeiRuntime(
+			recipeManager,
+			ingredientManager,
+			data.keyBindings(),
+			jeiHelpers,
+			screenHelper,
+			recipeTransferManager,
+			editModeConfig,
+			runtimeRegistration.getIngredientListOverlay(),
+			runtimeRegistration.getBookmarkOverlay(),
+			runtimeRegistration.getRecipesGui(),
+			runtimeRegistration.getIngredientFilter(),
+			configManager
+		);
+		timer.stop();
+
+		loadingState = LoadingState.COMPLETE;
+		return jeiRuntime;
+	}
+
+	private static class CancelledException extends RuntimeException {
+		CancelledException() {
+			super("JEI loading was cancelled");
+		}
 	}
 
 	public boolean isStarting() {

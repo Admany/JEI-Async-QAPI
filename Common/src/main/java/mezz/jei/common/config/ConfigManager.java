@@ -21,7 +21,7 @@ public class ConfigManager implements IJeiConfigManager {
 		this.configFiles.put(configFile.getPath(), configFile);
 	}
 
-	@Override
+@Override
 	public @Unmodifiable Collection<IJeiConfigFile> getConfigFiles() {
 		return Collections.unmodifiableCollection(configFiles.values());
 	}

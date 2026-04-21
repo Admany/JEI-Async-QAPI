@@ -137,7 +137,8 @@ public class JeiGuiStarter {
 			modIdHelper,
 			ingredientVisibility,
 			colorHelper,
-			toggleState
+			toggleState,
+			null
 		);
 		ingredientManager.registerIngredientListener(ingredientFilter);
 		ingredientVisibility.registerListener(ingredientFilter);

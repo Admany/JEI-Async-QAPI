@@ -30,4 +30,18 @@ public class ModHelper implements IPlatformModHelper {
 		FabricLoader loader = FabricLoader.getInstance();
 		return loader.isDevelopmentEnvironment();
 	}
+
+	@Override
+	public boolean isModLoaded(String modId) {
+		return FabricLoader.getInstance().isModLoaded(modId);
+	}
+
+	@Override
+	public String getModVersionForModId(String modId) {
+		return FabricLoader.getInstance()
+			.getModContainer(modId)
+			.map(ModContainer::getMetadata)
+			.map(m -> m.getVersion().getFriendlyString())
+			.orElse("unknown");
+	}
 }

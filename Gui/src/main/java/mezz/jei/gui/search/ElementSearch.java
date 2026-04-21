@@ -15,10 +15,12 @@ import mezz.jei.gui.ingredients.IListElement;
 import mezz.jei.gui.ingredients.IListElementInfo;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -87,10 +89,48 @@ public class ElementSearch implements IElementSearch {
 
 	@Override
 	public void addAll(Collection<IListElementInfo<?>> infos, IIngredientManager ingredientManager) {
-		if (DebugConfig.isParallelSearchEnabled() && infos.size() >= 100) {
+		addAll(infos, ingredientManager, null);
+	}
+
+	public void addAll(Collection<IListElementInfo<?>> infos, IIngredientManager ingredientManager, @Nullable SearchStringCache cache) {
+		if (cache != null && cache.isCacheAvailable()) {
+			addAllWithCache(infos, ingredientManager, cache);
+		} else if (DebugConfig.isParallelSearchEnabled() && infos.size() >= 100) {
 			addAllParallel(infos, ingredientManager);
 		} else {
 			addAllSequential(infos, ingredientManager);
+		}
+	}
+
+	private void addAllWithCache(Collection<IListElementInfo<?>> infos, IIngredientManager ingredientManager, SearchStringCache cache) {
+		for (IListElementInfo<?> info : infos) {
+			IListElement<?> element = info.getElement();
+			Object uid = getUid(info.getTypedIngredient(), ingredientManager);
+			this.allElements.put(uid, element);
+		}
+
+		for (var entry : prefixedSearchables.entrySet()) {
+			PrefixInfo<IListElementInfo<?>, IListElement<?>> prefixInfo = entry.getKey();
+			PrefixedSearchable<IListElementInfo<?>, IListElement<?>> prefixedSearchable = entry.getValue();
+			if (prefixedSearchable.getMode() == SearchMode.DISABLED) {
+				continue;
+			}
+
+			ISearchStorage<IListElement<?>> storage = prefixedSearchable.getSearchStorage();
+			char prefix = prefixInfo.getPrefix();
+			int index = 0;
+
+			for (IListElementInfo<?> info : infos) {
+				String cacheId = String.valueOf(index++);
+				List<String> cached = cache.getCachedStrings(cacheId, prefix);
+				IListElement<?> element = info.getElement();
+
+				if (cached != null) {
+					cached.forEach(s -> storage.put(s, element));
+				} else {
+					prefixedSearchable.getStrings(info).forEach(s -> storage.put(s, element));
+				}
+			}
 		}
 	}
 

@@ -30,4 +30,19 @@ public class ModHelper implements IPlatformModHelper {
 	public boolean isInDev() {
 		return !FMLLoader.isProduction();
 	}
+
+	@Override
+	public boolean isModLoaded(String modId) {
+		return ModList.get().isLoaded(modId);
+	}
+
+	@Override
+	public String getModVersionForModId(String modId) {
+		return ModList.get()
+			.getModContainerById(modId)
+			.map(ModContainer::getModInfo)
+			.map(IModInfo::getVersion)
+			.map(Object::toString)
+			.orElse("unknown");
+	}
 }

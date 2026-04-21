@@ -20,6 +20,7 @@ import mezz.jei.gui.search.ElementPrefixParser;
 import mezz.jei.gui.search.ElementSearch;
 import mezz.jei.gui.search.ElementSearchLowMem;
 import mezz.jei.gui.search.IElementSearch;
+import mezz.jei.gui.search.SearchStringCache;
 import net.minecraft.client.Minecraft;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -75,7 +76,8 @@ public class IngredientFilter implements
 			IModIdHelper modIdHelper,
 			IIngredientVisibility ingredientVisibility,
 			IColorHelper colorHelper,
-			IClientToggleState clientToggleState
+			IClientToggleState clientToggleState,
+			@Nullable SearchStringCache searchStringCache
 	) {
 		this.filterTextSource = filterTextSource;
 		this.clientConfig = clientConfig;

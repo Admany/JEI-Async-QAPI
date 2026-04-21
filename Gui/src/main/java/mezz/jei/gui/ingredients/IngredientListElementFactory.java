@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public final class IngredientListElementFactory {
 	private static final Logger LOGGER = LogManager.getLogger();
@@ -43,7 +42,7 @@ public final class IngredientListElementFactory {
 	private static <V> List<IListElementInfo<V>> createBaseListForType(IIngredientManager ingredientManager, IIngredientType<V> ingredientType, IModIdHelper modIdHelper) {
 		LOGGER.debug("Registering ingredients: {}", ingredientType.getIngredientClass().getSimpleName());
 
-		return getIngredientStream(ingredientManager, ingredientType)
+		return getIngredientList(ingredientManager, ingredientType).stream()
 			.map(ingredient -> {
 				Optional<ITypedIngredient<V>> typedIngredient = ingredientManager.createTypedIngredient(ingredientType, ingredient);
 				return typedIngredient.map(t -> ListElementInfo.create(t, ingredientManager, modIdHelper)).orElse(null);
@@ -52,21 +51,13 @@ public final class IngredientListElementFactory {
 			.collect(Collectors.toList());
 	}
 
-	private static <V> Stream<V> getIngredientStream(IIngredientManager ingredientManager, IIngredientType<V> ingredientType) {
-		Collection<V> ingredients = ingredientManager.getAllIngredients(ingredientType);
-		try {
-			// Try to stream directly for zero-allocation if possible
-			return ingredients.stream();
-		} catch (ConcurrentModificationException e) {
-			LOGGER.warn("Caught ConcurrentModificationException during initial stream of {}, retrying with copy", ingredientType.getIngredientClass().getSimpleName());
-			return getAllIngredientsWithRetry(ingredientManager, ingredientType).stream();
-		}
-	}
-
-	private static <V> Collection<V> getAllIngredientsWithRetry(IIngredientManager ingredientManager, IIngredientType<V> ingredientType) {
+	private static <V> Collection<V> getIngredientList(IIngredientManager ingredientManager, IIngredientType<V> ingredientType) {
 		for (int i = 0; i < 5; i++) {
 			try {
-				return new ArrayList<>(ingredientManager.getAllIngredients(ingredientType));
+				synchronized (ingredientManager) { // Synchronize access to prevent concurrent modification
+					Collection<V> ingredients = ingredientManager.getAllIngredients(ingredientType);
+					return new ArrayList<>(ingredients);
+				}
 			} catch (ConcurrentModificationException e) {
 				LOGGER.warn("Caught ConcurrentModificationException while copying ingredients for {}, retrying (attempt {})", ingredientType.getIngredientClass().getSimpleName(), i + 1);
 				try {
@@ -76,7 +67,10 @@ public final class IngredientListElementFactory {
 				}
 			}
 		}
-		return new ArrayList<>(ingredientManager.getAllIngredients(ingredientType));
+		// Final fallback
+		synchronized (ingredientManager) {
+			return new ArrayList<>(ingredientManager.getAllIngredients(ingredientType));
+		}
 	}
 
 	public static <V> List<IListElementInfo<V>> createTestList(IIngredientManager ingredientManager, IIngredientType<V> ingredientType, Collection<V> ingredients, IModIdHelper modIdHelper) {
@@ -103,7 +97,7 @@ public final class IngredientListElementFactory {
 
 	private static <V> void addToBaseList(List<IListElementInfo<?>> baseList, IIngredientManager ingredientManager, IIngredientType<V> ingredientType, IModIdHelper modIdHelper) {
 		LOGGER.debug("Registering ingredients: {}", ingredientType.getIngredientClass().getSimpleName());
-		getIngredientStream(ingredientManager, ingredientType).forEach(ingredient -> {
+		getIngredientList(ingredientManager, ingredientType).forEach(ingredient -> {
 			Optional<ITypedIngredient<V>> typedIngredient = ingredientManager.createTypedIngredient(ingredientType, ingredient);
 			if (typedIngredient.isPresent()) {
 				IListElementInfo<V> orderedElement = ListElementInfo.create(typedIngredient.get(), ingredientManager, modIdHelper);
