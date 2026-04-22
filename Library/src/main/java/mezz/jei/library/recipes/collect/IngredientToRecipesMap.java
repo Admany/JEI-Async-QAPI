@@ -1,6 +1,5 @@
 package mezz.jei.library.recipes.collect;
 
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.jetbrains.annotations.UnmodifiableView;
 
 import java.util.ArrayList;
@@ -8,14 +7,20 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class IngredientToRecipesMap<R> {
-	private final Map<Object, ArrayList<R>> uidToRecipes = new Object2ObjectOpenHashMap<>();
+	private final Map<Object, List<R>> uidToRecipes = new ConcurrentHashMap<>();
 
 	public void add(R recipe, Collection<Object> ingredientUids) {
 		for (Object uid : ingredientUids) {
-			List<R> recipes = uidToRecipes.computeIfAbsent(uid, k -> new ArrayList<>());
-			recipes.add(recipe);
+			uidToRecipes.compute(uid, (k, recipes) -> {
+				if (recipes == null) {
+					recipes = Collections.synchronizedList(new ArrayList<>());
+				}
+				recipes.add(recipe);
+				return recipes;
+			});
 		}
 	}
 
@@ -25,10 +30,19 @@ public class IngredientToRecipesMap<R> {
 		if (recipes == null) {
 			return Collections.emptyList();
 		}
-		return Collections.unmodifiableList(recipes);
+		synchronized (recipes) {
+			return List.copyOf(recipes);
+		}
 	}
 
 	public void compact() {
-		uidToRecipes.values().forEach(ArrayList::trimToSize);
+		for (Map.Entry<Object, List<R>> entry : uidToRecipes.entrySet()) {
+			List<R> recipes = entry.getValue();
+			synchronized (recipes) {
+				if (recipes instanceof ArrayList<R> list) {
+					list.trimToSize();
+				}
+			}
+		}
 	}
 }

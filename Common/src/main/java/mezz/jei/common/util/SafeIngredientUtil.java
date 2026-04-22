@@ -67,7 +67,7 @@ public final class SafeIngredientUtil {
 			if (CRASHING_INGREDIENT_RENDERERS.contains(ingredient)) {
 				getRenderErrorTooltip(tooltip);
 			}
-		} catch (RuntimeException | LinkageError e) {
+		} catch (Exception | Error e) {
 			CRASHING_INGREDIENT_TOOLTIPS.add(ingredient);
 			ErrorUtil.logIngredientCrash(e, "Caught an error getting an Ingredient's tooltip", ingredientManager, typedIngredient.getType(), ingredient);
 			getTooltipErrorTooltip(tooltip);
@@ -96,7 +96,7 @@ public final class SafeIngredientUtil {
 
 		try {
 			renderHelper.renderTooltip(guiGraphics, tooltip.getLines(), x, y, font, itemStack);
-		} catch (RuntimeException e) {
+		} catch (Exception | Error e) {
 			CRASHING_INGREDIENT_TOOLTIPS.add(ingredient);
 			CrashReportCategory category = new CrashReportCategory("tooltip");
 			category.setDetail("value", tooltip);
@@ -129,7 +129,7 @@ public final class SafeIngredientUtil {
 
 		try {
 			ingredientRenderer.renderBatch(guiGraphics, elements);
-		} catch (RuntimeException | LinkageError e) {
+		} catch (Exception | Error e) {
 			CRASHING_INGREDIENT_BATCH_RENDERERS.add(ingredientRenderer);
 			LOGGER.error(
 				"Caught an error while rendering a batch of Ingredients with ingredient renderer: {}",
@@ -173,7 +173,7 @@ public final class SafeIngredientUtil {
 
 		try {
 			ingredientRenderer.render(guiGraphics, ingredient, x, y);
-		} catch (RuntimeException | LinkageError e) {
+		} catch (Exception | Error e) {
 			CRASHING_INGREDIENT_RENDERERS.add(ingredient);
 
 			IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();

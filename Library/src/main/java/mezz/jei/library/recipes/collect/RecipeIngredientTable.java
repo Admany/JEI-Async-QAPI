@@ -4,12 +4,12 @@ import mezz.jei.api.recipe.RecipeType;
 import org.jetbrains.annotations.UnmodifiableView;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RecipeIngredientTable {
-	private final Map<RecipeType<?>, IngredientToRecipesMap<?>> map = new HashMap<>();
+	private final Map<RecipeType<?>, IngredientToRecipesMap<?>> map = new ConcurrentHashMap<>();
 
 	public <V> void add(V recipe, RecipeType<V> recipeType, Collection<Object> ingredientUids) {
 		@SuppressWarnings("unchecked")

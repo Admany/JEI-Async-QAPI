@@ -154,7 +154,7 @@ public final class ClientConfig implements IClientConfig {
 		);
 		catchRenderErrorsEnabled = advanced.addBoolean(
 			"CatchRenderErrorsEnabled",
-			!isDev,
+			true,
 			"Catch render errors from ingredients and attempt to recover from them instead of crashing."
 		);
 		lookupFluidContentsEnabled = advanced.addBoolean(

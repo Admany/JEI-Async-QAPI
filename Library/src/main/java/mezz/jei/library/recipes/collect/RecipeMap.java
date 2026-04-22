@@ -2,8 +2,6 @@ package mezz.jei.library.recipes.collect;
 
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.IIngredientTypeWithSubtypes;
@@ -38,8 +36,8 @@ public class RecipeMap {
 	private static final int PARALLEL_THRESHOLD = 100;
 
 	private final RecipeIngredientTable recipeTable = new RecipeIngredientTable();
-	private final Multimap<Object, RecipeType<?>> ingredientUidToCategoryMap = Multimaps.newSetMultimap(new Object2ObjectOpenHashMap<>(), ObjectOpenHashSet::new);
-	private final Multimap<Object, RecipeType<?>> categoryCatalystUidToRecipeCategoryMap = Multimaps.newSetMultimap(new Object2ObjectOpenHashMap<>(), ObjectOpenHashSet::new);
+	private final Multimap<Object, RecipeType<?>> ingredientUidToCategoryMap = Multimaps.synchronizedSetMultimap(Multimaps.newSetMultimap(new ConcurrentHashMap<>(), ConcurrentHashMap::newKeySet));
+	private final Multimap<Object, RecipeType<?>> categoryCatalystUidToRecipeCategoryMap = Multimaps.synchronizedSetMultimap(Multimaps.newSetMultimap(new ConcurrentHashMap<>(), ConcurrentHashMap::newKeySet));
 	private final Comparator<RecipeType<?>> recipeTypeComparator;
 	private final IIngredientManager ingredientManager;
 	private final RecipeIngredientRole role;
@@ -55,11 +53,17 @@ public class RecipeMap {
 	 */
 	public <T> Stream<RecipeType<?>> getRecipeTypes(ITypedIngredient<T> ingredient) {
 		Object ingredientUid = getIngredientUid(ingredient);
-		Collection<RecipeType<?>> recipeCategoryUids = ingredientUidToCategoryMap.get(ingredientUid);
-		Collection<RecipeType<?>> catalystRecipeCategoryUids = categoryCatalystUidToRecipeCategoryMap.get(ingredientUid);
+		Collection<RecipeType<?>> recipeCategoryUids;
+		Collection<RecipeType<?>> catalystRecipeCategoryUids;
+
+		synchronized (ingredientUidToCategoryMap) {
+			recipeCategoryUids = List.copyOf(ingredientUidToCategoryMap.get(ingredientUid));
+		}
+		synchronized (categoryCatalystUidToRecipeCategoryMap) {
+			catalystRecipeCategoryUids = List.copyOf(categoryCatalystUidToRecipeCategoryMap.get(ingredientUid));
+		}
 
 		return Stream.concat(recipeCategoryUids.stream(), catalystRecipeCategoryUids.stream())
-			.parallel()
 			.distinct()
 			.sorted(recipeTypeComparator);
 	}
@@ -77,8 +81,7 @@ public class RecipeMap {
 
 	public <T> boolean isCatalystForRecipeCategory(RecipeType<T> recipeType, ITypedIngredient<?> ingredient) {
 		Object ingredientUid = getIngredientUid(ingredient);
-		Collection<RecipeType<?>> catalystCategories = categoryCatalystUidToRecipeCategoryMap.get(ingredientUid);
-		return catalystCategories.contains(recipeType);
+		return categoryCatalystUidToRecipeCategoryMap.containsEntry(ingredientUid, recipeType);
 	}
 
 	/**
@@ -119,8 +122,6 @@ public class RecipeMap {
 	 * Parallel recipe addition (large ingredient lists).
 	 */
 	private <T> void addRecipeParallel(RecipeType<T> recipeType, T recipe, Collection<ITypedIngredient<?>> ingredients) {
-		LOGGER.debug("Adding recipe with {} ingredients using parallel processing", ingredients.size());
-
 		try {
 			// Extract ingredient UIDs in parallel
 			Set<Object> ingredientUids = ingredients.parallelStream()
@@ -129,7 +130,7 @@ public class RecipeMap {
 				.collect(Collectors.toCollection(ConcurrentHashMap::newKeySet));
 
 			if (!ingredientUids.isEmpty()) {
-				// Update category map sequentially
+				// Update category map
 				for (Object uid : ingredientUids) {
 					ingredientUidToCategoryMap.put(uid, recipeType);
 				}
