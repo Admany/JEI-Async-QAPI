@@ -53,7 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class JeiStarter {
 	private static final Logger LOGGER = LogManager.getLogger();
-	private static final String EXPECTED_VERSION = "19.27.0.340-async-7";
+	private static final String EXPECTED_VERSION = "19.27.0.340-async-8";
 	private static final ExecutorService LOADING_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
 		Thread t = new Thread(r, "JEI Background Loader");
 		t.setDaemon(true);
@@ -61,19 +61,20 @@ public final class JeiStarter {
 	});
 
 	private final StartData data;
-	private final List<IModPlugin> plugins;
-	private final VanillaPlugin vanillaPlugin;
-	private final ModIdFormatConfig modIdFormatConfig;
-	private final ColorNameConfig colorNameConfig;
-	private final RecipeCategorySortingConfig recipeCategorySortingConfig;
+	private List<IModPlugin> plugins;
+	private VanillaPlugin vanillaPlugin;
+	private ModIdFormatConfig modIdFormatConfig;
+	private ColorNameConfig colorNameConfig;
+	private RecipeCategorySortingConfig recipeCategorySortingConfig;
 	@SuppressWarnings("FieldCanBeLocal")
-	private final FileWatcher fileWatcher = new FileWatcher("JEI Config File Watcher");
-	private final ConfigManager configManager;
-	private final JeiClientConfigs jeiClientConfigs;
-	private final IncompatiblePluginStore incompatiblePluginStore;
+	private FileWatcher fileWatcher = null;
+	private ConfigManager configManager;
+	private JeiClientConfigs jeiClientConfigs;
+	private IncompatiblePluginStore incompatiblePluginStore;
 
 	private final AtomicReference<CompletableFuture<Void>> loadingFuture = new AtomicReference<>();
 	private volatile boolean cancelled = false;
+	private volatile boolean hidden = false;
 	private volatile LoadingState loadingState = LoadingState.NOT_STARTED;
 
 	public JeiStarter(StartData data) {
@@ -83,8 +84,16 @@ public final class JeiStarter {
 			throw new RuntimeException("JEI-Async incompatibility: Another version of JEI (" + currentVersion + ") was detected.");
 		}
 
-		ErrorUtil.checkNotEmpty(data.plugins(), "plugins");
+		if (Services.PLATFORM.getModHelper().isModLoaded("emi")) {
+			LOGGER.info("EMI is loaded, JEI GUI will be hidden but recipes will still be available.");
+			this.hidden = true;
+		} else {
+			this.hidden = false;
+		}
+
+		this.fileWatcher = new FileWatcher("JEI Config File Watcher");
 		this.data = data;
+		ErrorUtil.checkNotEmpty(data.plugins(), "plugins");
 		this.plugins = data.plugins();
 		this.vanillaPlugin = PluginHelper.getPluginWithClass(VanillaPlugin.class, plugins)
 			.orElseThrow(() -> new IllegalStateException("vanilla plugin not found"));
@@ -130,6 +139,13 @@ public final class JeiStarter {
 		// Main thread: capture RegistryAccess (requires minecraft.level)
 		RegistryAccess registryAccess = minecraft.level.registryAccess();
 		RegistryUtil.setRegistryAccess(registryAccess);
+
+		if (hidden) {
+			LOGGER.info("JEI is hidden because EMI is loaded. Loading recipes without GUI...");
+			doLoadingSync();
+			Internal.getClientToggleState().setHiddenByEmi(true);
+			return;
+		}
 
 		if (!DebugConfig.isAsyncLoadingEnabled()) {
 			// Sync mode: run everything on main thread (unchanged behavior)
@@ -224,7 +240,9 @@ public final class JeiStarter {
 	 */
 	private JeiRuntime buildRuntime(boolean useAsyncFallback) {
 		loadingState = LoadingState.LOADING_SUBTYPES;
-		Internal.setLoadingProgress("Loading subtypes...");
+		if (!hidden) {
+			Internal.setLoadingProgress("Loading subtypes...");
+		}
 		IColorHelper colorHelper = new ColorHelper(colorNameConfig);
 		IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
 		SubtypeManager subtypeManager = PluginLoader.registerSubtypes(data, useAsyncFallback, incompatiblePluginStore);
@@ -234,7 +252,9 @@ public final class JeiStarter {
 		}
 
 		loadingState = LoadingState.LOADING_INGREDIENTS;
-		Internal.setLoadingProgress("Loading ingredients...");
+		if (!hidden) {
+			Internal.setLoadingProgress("Loading ingredients...");
+		}
 		IIngredientManager ingredientManager = PluginLoader.registerIngredients(data, subtypeManager, colorHelper, ingredientFilterConfig, useAsyncFallback, incompatiblePluginStore);
 
 		if (cancelled) {
@@ -261,7 +281,9 @@ public final class JeiStarter {
 		}
 
 		loadingState = LoadingState.LOADING_CATEGORIES;
-		Internal.setLoadingProgress("Loading categories & recipes...");
+		if (!hidden) {
+			Internal.setLoadingProgress("Loading categories & recipes...");
+		}
 		RecipeManager recipeManager = PluginLoader.createRecipeManager(
 			plugins,
 			vanillaPlugin,
@@ -277,7 +299,9 @@ public final class JeiStarter {
 		}
 
 		loadingState = LoadingState.BUILDING_RUNTIME;
-		Internal.setLoadingProgress("Building runtime...");
+		if (!hidden) {
+			Internal.setLoadingProgress("Building runtime...");
+		}
 		IRecipeTransferManager recipeTransferManager = PluginLoader.createRecipeTransferManager(
 			vanillaPlugin,
 			plugins,

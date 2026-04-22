@@ -6,4 +6,6 @@ public interface IPlatformModHelper {
 	String getModVersionForModId(String modId);
 
 	boolean isInDev();
+
+	boolean isModLoaded(String modId);
 }
