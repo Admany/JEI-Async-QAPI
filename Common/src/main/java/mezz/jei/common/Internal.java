@@ -95,8 +95,12 @@ public final class Internal {
 		Internal.jeiRuntime = jeiRuntime;
 	}
 
+	public static Optional<IJeiRuntime> getOptionalJeiRuntime() {
+		return Optional.ofNullable(jeiRuntime);
+	}
+
 	public static IJeiRuntime getJeiRuntime() {
-		Preconditions.checkState(jeiRuntime != null, "Jei Client Configs have not been created yet.");
+		Preconditions.checkState(jeiRuntime != null, "Jei Runtime has not been created yet.");
 
 		return jeiRuntime;
 	}

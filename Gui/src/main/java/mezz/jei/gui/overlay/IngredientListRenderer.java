@@ -106,6 +106,9 @@ public class IngredientListRenderer {
 	}
 
 	public void render(GuiGraphics guiGraphics) {
+		if (Internal.getOptionalJeiRuntime().isEmpty()) {
+			return;
+		}
 		if (searchable && Internal.getClientToggleState().isEditModeEnabled()) {
 			renderEditMode(guiGraphics);
 		}

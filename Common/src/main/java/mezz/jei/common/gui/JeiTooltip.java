@@ -143,6 +143,9 @@ public class JeiTooltip implements ITooltipBuilder {
 	}
 
 	private <T> void draw(GuiGraphics guiGraphics, int x, int y, ITypedIngredient<T> typedIngredient) {
+		if (Internal.isLoading() || Internal.getOptionalJeiRuntime().isEmpty()) {
+			return;
+		}
 		IIngredientType<T> ingredientType = typedIngredient.getType();
 		IIngredientManager ingredientManager = Internal.getJeiRuntime().getIngredientManager();
 		IIngredientRenderer<T> ingredientRenderer = ingredientManager.getIngredientRenderer(ingredientType);
@@ -157,6 +160,9 @@ public class JeiTooltip implements ITooltipBuilder {
 		IIngredientRenderer<T> ingredientRenderer,
 		IIngredientManager ingredientManager
 	) {
+		if (Internal.getOptionalJeiRuntime().isEmpty()) {
+			return;
+		}
 		Minecraft minecraft = Minecraft.getInstance();
 		T ingredient = typedIngredient.getIngredient();
 		Font font = ingredientRenderer.getFontRenderer(minecraft, ingredient);
