@@ -56,7 +56,7 @@ public final class JeiStarter {
 		t.setDaemon(true);
 		return t;
 	});
-	private static final String EXPECTED_VERSION = "15.20.0.129-async-17"; // Current JEI-Async version
+	private static final String EXPECTED_VERSION = "15.20.0.129-async-18"; // Current JEI-Async version
 
 	private final StartData data;
 	private final List<IModPlugin> plugins;
@@ -72,9 +72,17 @@ public final class JeiStarter {
 	private volatile boolean isStarting = false;
 	private final AtomicReference<java.util.concurrent.CompletableFuture<Void>> loadingFuture = new AtomicReference<>();
 	private volatile boolean cancelled = false;
+	private volatile boolean hidden = false;
 	private volatile LoadingState loadingState = LoadingState.NOT_STARTED;
 
 	public JeiStarter(StartData data) {
+		if (Services.PLATFORM.getModHelper().isModLoaded("emi")) {
+			LOGGER.info("EMI is loaded, JEI GUI will be hidden but recipes will still be available.");
+			this.hidden = true;
+		} else {
+			this.hidden = false;
+		}
+
 		ErrorUtil.checkNotEmpty(data.plugins(), "plugins");
 
 		// Check for version mismatch which might indicate another JEI version is present
@@ -117,7 +125,7 @@ public final class JeiStarter {
 		this.recipeCategorySortingConfig = new RecipeCategorySortingConfig(configDir.resolve("recipe-category-sort-order.ini"));
 		this.incompatiblePluginStore = new IncompatiblePluginStore(configDir);
 
-		PluginCaller.callOnPlugins("Sending ConfigManager", plugins, p -> p.onConfigManagerAvailable(configManager));
+		PluginCaller.callPlugins("Sending ConfigManager", plugins, p -> p.onConfigManagerAvailable(configManager), DebugConfig.isAsyncLoadingEnabled(), incompatiblePluginStore);
 	}
 
 	public void start() {
@@ -130,6 +138,13 @@ public final class JeiStarter {
 		// Main thread: capture RegistryAccess (requires minecraft.level)
 		RegistryAccess registryAccess = minecraft.level.registryAccess();
 		RegistryUtil.setRegistryAccess(registryAccess);
+
+		if (hidden) {
+			LOGGER.info("JEI is hidden because EMI is loaded. Loading recipes without GUI...");
+			doLoadingSync();
+			Internal.getClientToggleState().setHiddenByEmi(true);
+			return;
+		}
 
 		if (!DebugConfig.isAsyncLoadingEnabled()) {
 			// Sync mode: run everything on main thread (unchanged behavior)
@@ -160,7 +175,7 @@ public final class JeiStarter {
 
 		JeiRuntime jeiRuntime = buildRuntime(false);
 
-		PluginCaller.callOnPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime));
+		PluginCaller.callPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime), false, incompatiblePluginStore);
 		Internal.setRuntime(jeiRuntime);
 
 		totalTime.stop();
@@ -188,7 +203,7 @@ public final class JeiStarter {
 				return;
 			}
 			Internal.setRuntime(jeiRuntime);
-			PluginCaller.callOnPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime));
+PluginCaller.callPlugins("Sending Runtime", plugins, p -> p.onRuntimeAvailable(jeiRuntime), false, incompatiblePluginStore);
 			Internal.setLoadingProgress(null);
 			LOGGER.info("JEI has finished background loading and is now available.");
 			playLoadCompleteSound();
@@ -207,7 +222,9 @@ public final class JeiStarter {
 
 	private JeiRuntime buildRuntime(boolean useAsyncFallback) {
 		loadingState = LoadingState.LOADING_SUBTYPES;
-		Internal.setLoadingProgress("Loading subtypes...");
+		if (!hidden) {
+			Internal.setLoadingProgress("Loading subtypes...");
+		}
 		IColorHelper colorHelper = new ColorHelper(colorNameConfig);
 		IIngredientFilterConfig ingredientFilterConfig = jeiClientConfigs.getIngredientFilterConfig();
 		SubtypeManager subtypeManager = PluginLoader.registerSubtypes(data, useAsyncFallback, incompatiblePluginStore);
@@ -217,7 +234,9 @@ public final class JeiStarter {
 		}
 
 		loadingState = LoadingState.LOADING_INGREDIENTS;
-		Internal.setLoadingProgress("Loading ingredients...");
+		if (!hidden) {
+			Internal.setLoadingProgress("Loading ingredients...");
+		}
 		IIngredientManager ingredientManager = PluginLoader.registerIngredients(data, subtypeManager, colorHelper, ingredientFilterConfig, useAsyncFallback, incompatiblePluginStore);
 
 		if (cancelled) {
@@ -236,7 +255,9 @@ public final class JeiStarter {
 		}
 
 		loadingState = LoadingState.LOADING_CATEGORIES;
-		Internal.setLoadingProgress("Loading categories & recipes...");
+		if (!hidden) {
+			Internal.setLoadingProgress("Loading categories & recipes...");
+		}
 		RecipeManager recipeManager = PluginLoader.createRecipeManager(
 			plugins,
 			vanillaPlugin,
@@ -252,7 +273,9 @@ public final class JeiStarter {
 		}
 
 		loadingState = LoadingState.BUILDING_RUNTIME;
-		Internal.setLoadingProgress("Building runtime...");
+		if (!hidden) {
+			Internal.setLoadingProgress("Building runtime...");
+		}
 		IRecipeTransferManager recipeTransferManager = PluginLoader.createRecipeTransferManager(
 			plugins,
 			jeiHelpers,
@@ -272,7 +295,7 @@ public final class JeiStarter {
 			screenHelper
 		);
 
-		PluginCaller.callOnPlugins("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration));
+		PluginCaller.callPlugins("Registering Runtime", plugins, p -> p.registerRuntime(runtimeRegistration), useAsyncFallback, incompatiblePluginStore);
 
 		JeiRuntime jeiRuntime = new JeiRuntime(
 			recipeManager,
@@ -317,7 +340,7 @@ public final class JeiStarter {
 		}
 
 		List<IModPlugin> plugins = data.plugins();
-		PluginCaller.callOnPlugins("Sending Runtime Unavailable", plugins, IModPlugin::onRuntimeUnavailable);
+		PluginCaller.callPlugins("Sending Runtime Unavailable", plugins, IModPlugin::onRuntimeUnavailable, false, incompatiblePluginStore);
 		Internal.setRuntime(null);
 		RegistryUtil.setRegistryAccess(null);
 	}

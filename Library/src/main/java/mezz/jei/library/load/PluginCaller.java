@@ -28,7 +28,7 @@ public class PluginCaller {
 		return thread;
 	});
 
-	public static void callOnPlugins(
+	public static void callPluginsAsync(
 		String title,
 		List<IModPlugin> plugins,
 		Consumer<IModPlugin> func,
@@ -42,13 +42,33 @@ public class PluginCaller {
 		}
 	}
 
+	public static void callPlugins(
+		String title,
+		List<IModPlugin> plugins,
+		Consumer<IModPlugin> func,
+		boolean useAsyncFallback,
+		@Nullable IncompatiblePluginStore incompatiblePluginStore
+	) {
+		callPluginsAsync(title, plugins, func, useAsyncFallback, incompatiblePluginStore);
+	}
+
 	public static void callOnPlugins(String title, List<IModPlugin> plugins, Consumer<IModPlugin> func) {
 		LOGGER.info("{}...", title);
 		Stopwatch stopwatch = Stopwatch.createStarted();
 
 		// If async loading is disabled, use simple synchronous execution
 		if (!DebugConfig.isAsyncLoadingEnabled()) {
-			callOnPluginsSync(title, plugins, func);
+			for (IModPlugin plugin : plugins) {
+				ResourceLocation pluginLocation = plugin.getPluginUid();
+				try {
+					if (plugin instanceof VanillaPlugin) {
+						LOGGER.info("Calling VanillaPlugin...");
+					}
+					func.accept(plugin);
+				} catch (Throwable e) {
+					LOGGER.error("Plugin failed: {}", pluginLocation, e);
+				}
+			}
 			LOGGER.info("{} took {}", title, stopwatch);
 			return;
 		}
@@ -78,7 +98,17 @@ public class PluginCaller {
 				.toList();
 
 		// 2. Execute sync plugins
-		callOnPluginsSync(title, syncPlugins, func);
+		for (IModPlugin plugin : plugins) {
+			ResourceLocation pluginLocation = plugin.getPluginUid();
+			try {
+				if (plugin instanceof VanillaPlugin) {
+					LOGGER.info("Calling VanillaPlugin...");
+				}
+				func.accept(plugin);
+			} catch (Throwable e) {
+				LOGGER.error("Plugin failed: {}", pluginLocation, e);
+			}
+		}
 
 		// 3. Wait for all async plugins to finish
 		try {
@@ -120,24 +150,20 @@ public class PluginCaller {
 		// Execute incompatible plugins synchronously
 		if (!incompatiblePlugins.isEmpty()) {
 			LOGGER.info("Executing {} incompatible plugins synchronously for {}...", incompatiblePlugins.size(), title);
-			callOnPluginsSync(title, incompatiblePlugins, func);
+			for (IModPlugin plugin : plugins) {
+				ResourceLocation pluginLocation = plugin.getPluginUid();
+				try {
+					if (plugin instanceof VanillaPlugin) {
+						LOGGER.info("Calling VanillaPlugin...");
+					}
+					func.accept(plugin);
+				} catch (Throwable e) {
+					LOGGER.error("Plugin failed: {}", pluginLocation, e);
+				}
+			}
 		}
 
 		stopwatch.stop();
 		LOGGER.info("{} (with async fallback) took {}", title, stopwatch);
-	}
-
-	private static void callOnPluginsSync(String title, List<IModPlugin> plugins, Consumer<IModPlugin> func) {
-		for (IModPlugin plugin : plugins) {
-			ResourceLocation pluginLocation = plugin.getPluginUid();
-			try {
-				if (plugin instanceof VanillaPlugin) {
-					LOGGER.info("Calling VanillaPlugin...");
-				}
-				func.accept(plugin);
-			} catch (Throwable e) {
-				LOGGER.error("Plugin failed: {}", pluginLocation, e);
-			}
-		}
 	}
 }

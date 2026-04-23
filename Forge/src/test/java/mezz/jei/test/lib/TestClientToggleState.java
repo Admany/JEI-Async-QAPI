@@ -55,6 +55,9 @@ public class TestClientToggleState implements IClientToggleState {
 
 	@Override
 	public void addEditModeToggleListener(IEditModeListener listener) {
+	}
 
+	@Override
+	public void setHiddenByEmi(boolean hidden) {
 	}
 }

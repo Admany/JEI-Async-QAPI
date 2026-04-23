@@ -9,10 +9,19 @@ public class ClientToggleState implements IClientToggleState {
 	private boolean cheatItemsEnabled = false;
 	private boolean editModeEnabled = false;
 	private boolean bookmarkOverlayEnabled = true;
+	private boolean hiddenByEmi = false;
+
+	public void setHiddenByEmi(boolean hidden) {
+		this.hiddenByEmi = hidden;
+		if (hidden) {
+			this.overlayEnabled = false;
+			this.bookmarkOverlayEnabled = false;
+		}
+	}
 
 	@Override
 	public boolean isOverlayEnabled() {
-		return overlayEnabled;
+		return overlayEnabled && !hiddenByEmi;
 	}
 
 	@Override
@@ -22,7 +31,7 @@ public class ClientToggleState implements IClientToggleState {
 
 	@Override
 	public boolean isBookmarkOverlayEnabled() {
-		return isOverlayEnabled() && bookmarkOverlayEnabled;
+		return isOverlayEnabled() && bookmarkOverlayEnabled && !hiddenByEmi;
 	}
 
 	@Override

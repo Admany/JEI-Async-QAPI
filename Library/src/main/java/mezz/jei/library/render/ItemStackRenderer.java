@@ -10,6 +10,7 @@ import mezz.jei.library.render.batch.ItemStackBatchRendererCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -56,8 +57,13 @@ public class ItemStackRenderer implements IIngredientRenderer<ItemStack> {
 	public void getTooltip(ITooltipBuilder tooltip, ItemStack ingredient, TooltipFlag tooltipFlag) {
 		Minecraft minecraft = Minecraft.getInstance();
 		Player player = minecraft.player;
-		List<Component> components = ingredient.getTooltipLines(player, tooltipFlag);
-		tooltip.addAll(components);
+		try {
+			List<Component> components = ingredient.getTooltipLines(player, tooltipFlag);
+			tooltip.addAll(components);
+		} catch (Exception | Error e) {
+			Component errorText = Component.literal("Error getting tooltip").withStyle(ChatFormatting.RED);
+			tooltip.add(errorText);
+		}
 	}
 
 	@Override

@@ -23,6 +23,8 @@ public interface IClientToggleState {
 
 	void addEditModeToggleListener(IEditModeListener listener);
 
+	void setHiddenByEmi(boolean hidden);
+
 	interface IEditModeListener {
 		void onEditModeChanged();
 	}
