@@ -124,7 +124,11 @@ public class ListElementInfo<V> implements IListElementInfo<V> {
 		tooltipFlag = tooltipFlag.asCreative();
 
 		ListElementInfoTooltip tooltip = new ListElementInfoTooltip();
-		SafeIngredientUtil.getTooltip(tooltip, ingredientManager, ingredientRenderer, value, tooltipFlag);
+		try {
+			SafeIngredientUtil.getTooltip(tooltip, ingredientManager, ingredientRenderer, value, tooltipFlag);
+		} catch (Throwable t) {
+			return Set.of();
+		}
 		Set<String> strings = tooltip.getStrings();
 
 		strings.remove(this.names.get(0));

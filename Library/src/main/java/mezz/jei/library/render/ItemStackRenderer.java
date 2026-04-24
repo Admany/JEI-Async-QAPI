@@ -50,7 +50,11 @@ public class ItemStackRenderer implements IIngredientRenderer<ItemStack> {
 	public List<Component> getTooltip(ItemStack ingredient, TooltipFlag tooltipFlag) {
 		Minecraft minecraft = Minecraft.getInstance();
 		Player player = minecraft.player;
-		return ingredient.getTooltipLines(player, tooltipFlag);
+		try {
+			return ingredient.getTooltipLines(player, tooltipFlag);
+		} catch (Exception | Error e) {
+			return List.of(Component.literal("Error getting tooltip").withStyle(ChatFormatting.RED));
+		}
 	}
 
 	@Override

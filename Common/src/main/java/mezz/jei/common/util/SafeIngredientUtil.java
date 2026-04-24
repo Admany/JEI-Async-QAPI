@@ -67,9 +67,11 @@ public final class SafeIngredientUtil {
 			if (CRASHING_INGREDIENT_RENDERERS.contains(ingredient)) {
 				getRenderErrorTooltip(tooltip);
 			}
-		} catch (Exception | Error e) {
+		} catch (Throwable e) {
 			CRASHING_INGREDIENT_TOOLTIPS.add(ingredient);
-			ErrorUtil.logIngredientCrash(e, "Caught an error getting an Ingredient's tooltip", ingredientManager, typedIngredient.getType(), ingredient);
+			if (Minecraft.getInstance().getConnection() != null) {
+				ErrorUtil.logIngredientCrash(e, "Caught an error getting an Ingredient's tooltip", ingredientManager, typedIngredient.getType(), ingredient);
+			}
 			getTooltipErrorTooltip(tooltip);
 		}
 	}
