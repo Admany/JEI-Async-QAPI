@@ -101,6 +101,17 @@ public class StartEventObserver {
 				}
 			}
 		});
+
+		subscriptions.register(TickEvent.ClientTickEvent.class, event -> {
+			if (event.phase == TickEvent.Phase.START) {
+				Minecraft minecraft = Minecraft.getInstance();
+				// Check if world was unloaded while JEI was starting or loading
+				if ((this.state == State.EVENTS_RECEIVED || this.state == State.JEI_STARTED) && minecraft.level == null) {
+					LOGGER.info("JEI detected world unload during startup");
+					transitionState(State.DISABLED);
+				}
+			}
+		});
 	}
 
 	/**
@@ -172,6 +183,10 @@ public class StartEventObserver {
 					// Not ready yet, wait for client tick
 					return;
 				}
+				// Force ProjectE IEMCProxy to load on the main thread before JEI starts loading
+				forceProjectEClassLoad();
+				// Force Mekanism ISecurityUtils to load on the main thread before JEI starts loading
+				forceMekanismClassLoad();
 				// Start JEI in background - this is non-blocking now
 				this.startRunnable.run();
 				LOGGER.info("JEI startup initiated in background. The world is running.");
@@ -180,5 +195,29 @@ public class StartEventObserver {
 
 		this.state = newState;
 		this.observedEvents.clear();
+	}
+
+	private void forceMekanismClassLoad() {
+		try {
+			Class<?> mekaProxyClass = Class.forName("mekanism.api.security.ISecurityUtils");
+			mekaProxyClass.getField("INSTANCE").get(null);
+			LOGGER.info("Mekanism ISecurityUtils loaded successfully");
+		} catch (ClassNotFoundException e) {
+			LOGGER.info("Mekanism ISecurityUtils not found (ProjectE may not be installed)");
+		} catch (Throwable e) {
+			LOGGER.info("Mekanism ISecurityUtils load error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+		}
+	}
+
+	private void forceProjectEClassLoad() {
+		try {
+			Class<?> emcProxyClass = Class.forName("moze_intel.projecte.api.proxy.IEMCProxy");
+			emcProxyClass.getField("INSTANCE").get(null);
+			LOGGER.info("ProjectE IEMCProxy loaded successfully");
+		} catch (ClassNotFoundException e) {
+			LOGGER.info("ProjectE IEMCProxy not found (ProjectE may not be installed)");
+		} catch (Throwable e) {
+			LOGGER.info("ProjectE IEMCProxy load error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+		}
 	}
 }
