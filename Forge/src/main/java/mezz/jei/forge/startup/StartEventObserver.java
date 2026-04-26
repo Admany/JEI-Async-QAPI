@@ -168,12 +168,19 @@ public class StartEventObserver {
 				if (this.state != State.DISABLED) {
 					throw new IllegalStateException("Attempted Illegal state transition from " + this.state + " to " + newState);
 				}
+				// Force ProjectE IEMCProxy to load on the main thread before JEI starts loading
+				forceProjectEClassLoad();
+				// Force Mekanism ISecurityUtils to load on the main thread before JEI starts loading
+				forceMekanismClassLoad();
 			}
 			case EVENTS_RECEIVED -> {
 				if (this.state != State.ENABLED) {
 					throw new IllegalStateException("Attempted Illegal state transition from " + this.state + " to " + newState);
 				}
-				// Wait for world load before starting JEI
+				// Force ProjectE IEMCProxy to load on the main thread before JEI starts loading
+				forceProjectEClassLoad();
+				// Force Mekanism ISecurityUtils to load on the main thread before JEI starts loading
+				forceMekanismClassLoad();
 			}
 			case JEI_STARTED -> {
 				if (this.state != State.ENABLED && this.state != State.EVENTS_RECEIVED) {
