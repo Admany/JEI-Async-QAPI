@@ -1,5 +1,6 @@
 package mezz.jei.neoforge.plugins.neoforge;
 
+import mezz.jei.api.IAsyncCompatiblePlugin;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.ModIds;
@@ -22,7 +23,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Optional;
 
 @JeiPlugin
-public class NeoForgeGuiPlugin implements IModPlugin {
+public class NeoForgeGuiPlugin implements IModPlugin, IAsyncCompatiblePlugin {
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static @Nullable ResourceReloadHandler resourceReloadHandler;
 	private @Nullable JeiEventHandlers pendingEventHandlers;
@@ -76,5 +77,10 @@ public class NeoForgeGuiPlugin implements IModPlugin {
 
 	public static Optional<ResourceReloadHandler> getResourceReloadHandler() {
 		return Optional.ofNullable(resourceReloadHandler);
+	}
+
+	@Override
+	public boolean canExecuteAsync() {
+		return false;
 	}
 }

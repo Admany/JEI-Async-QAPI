@@ -1,5 +1,6 @@
 package mezz.jei.forge.plugins.forge;
 
+import mezz.jei.api.IAsyncCompatiblePlugin;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.ModIds;
@@ -18,7 +19,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Optional;
 
 @JeiPlugin
-public class ForgeGuiPlugin implements IModPlugin {
+public class ForgeGuiPlugin implements IModPlugin, IAsyncCompatiblePlugin {
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static @Nullable ResourceReloadHandler resourceReloadHandler;
 
@@ -51,5 +52,10 @@ public class ForgeGuiPlugin implements IModPlugin {
 
 	public static Optional<ResourceReloadHandler> getResourceReloadHandler() {
 		return Optional.ofNullable(resourceReloadHandler);
+	}
+
+	@Override
+	public boolean canExecuteAsync() {
+		return false;
 	}
 }
